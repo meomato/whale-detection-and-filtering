@@ -1,0 +1,26 @@
+# Python-generated files
+__pycache__/
+*.py[oc]
+build/
+dist/
+wheels/
+*.egg-info
+
+# Virtual environments
+.venv
+
+data/watkins/
+data/sound-event-detection/
+data/noaa_onms/
+data/orcasound/
+
+# Local IDE settings
+.idea/
+
+# Local DB artifacts
+*.sqlite
+*.sqlite-shm
+*.sqlite-wal
+*.index
+
+outputs/
