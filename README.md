@@ -16,29 +16,33 @@ Full parameter docs live in each YAML under `configs/`.
 
 ## Project structure
 
-```cp
+```text
 filtering/
-├── embed/
-│   └── perch_v2_embed.py           # compute Perch embeddings for any audio dataset
-├── watkins/
-│   ├── train_classifier.py         # multiclass species classifier
-│   └── classifier/                 # data loading, metrics, reporting, pipeline
-└── sed/
-    ├── convert_annotations.py      # annotations.json → manifest.csv
-    ├── train_classifier.py         # binary sound/noise classifier
-    └── classifier/                 # labeling, data loading, pipeline
+|-- embed/
+|   `-- perch_v2_embed.py           # compute Perch embeddings for any audio dataset
+|-- watkins/
+|   |-- train_classifier.py         # multiclass species classifier
+|   `-- classifier/                 # data loading, metrics, reporting, pipeline
+|-- sed/
+|   |-- convert_annotations.py      # annotations.json -> manifest.csv
+|   |-- train_classifier.py         # binary sound/noise classifier
+|   `-- classifier/                 # labeling, data loading, pipeline
+`-- voxaboxen/
+    |-- prepare_dataset.py          # Label Studio JSON -> Voxaboxen/Raven files
+    |-- run_training.py             # call external Voxaboxen training
+    `-- run_inference.py            # call external Voxaboxen inference
 
 utils/
-└── datasets_downloads/
-    ├── download_watkins.py         # download Watkins marine mammal dataset
-    ├── download_noaa_onms.py       # sample small subsets from NOAA ONMS / SanctSound
-    ├── download_orcasound.py       # download and process Orcasound AWS Open Data
-    └── download_manual_sed.py      # download manual SED dataset from Google Drive
+`-- datasets_downloads/
+    |-- download_watkins.py         # download Watkins marine mammal dataset
+    |-- download_noaa_onms.py       # sample small subsets from NOAA ONMS / SanctSound
+    |-- download_orcasound.py       # download and process Orcasound AWS Open Data
+    `-- download_manual_sed.py      # download manual SED dataset from Google Drive
 ```
 
 ---
 
-## Scenario 1 — Watkins species classifier
+## Scenario 1 - Watkins species classifier
 
 ```bash
 # 1. Download dataset
@@ -53,12 +57,12 @@ uv run python filtering/watkins/train_classifier.py
 
 ---
 
-## Scenario 2 — SED sound/noise binary classifier
+## Scenario 2 - SED sound/noise binary classifier
 
 ```bash
 # 1. Download folder from Google Drive
 
-# 2. Convert annotations JSON → flat manifest CSV
+# 2. Convert annotations JSON -> flat manifest CSV
 uv run python filtering/sed/convert_annotations.py
 
 # 3. Compute embeddings  (set audio_dir + dataset_name in perch_embeddings config)
@@ -70,13 +74,13 @@ uv run python filtering/sed/train_classifier.py
 
 **Label logic per 5s window:**
 
-- overlaps a `sound` event by ≥ `min_overlap_s` → `sound`
-- otherwise → `noise`
+- overlaps a `sound` event by >= `min_overlap_s` -> `sound`
+- otherwise -> `noise`
 - artifact windows: kept as `noise` (`treat_artifact_as_noise=true`) or excluded (`false`)
 
 ---
 
-## Scenario 3 — Re-embed with a different model
+## Scenario 3 - Re-embed with a different model
 
 ```bash
 uv run python filtering/embed/perch_v2_embed.py \
@@ -90,30 +94,30 @@ uv run python filtering/embed/perch_v2_embed.py \
 ## Scenario 4 - NOAA ONMS / SanctSound
 
 Deployment list is configured in `configs/data_loading/data_loading.yaml`
-via `noaa_deployment_prefixes`.
+via `data_loading.sources.noaa.deployment_prefixes`.
 
 Download only new files, about 4 hours per run (no chunking):
 
 ```powershell
-uv run python utils/datasets_downloads/download_noaa_onms.py data_loading.noaa_only_new_files=true data_loading.noaa_hours_per_deployment=1.34 data_loading.raw_segment_duration=-1
+uv run python utils/datasets_downloads/download_noaa_onms.py data_loading.sources.noaa.only_new_files=true data_loading.sources.noaa.hours_per_deployment=1.34 data_loading.raw_segment_duration=-1
 ```
 
 Download only new files, exactly 1 file from each deployment:
 
 ```powershell
-uv run python utils/datasets_downloads/download_noaa_onms.py data_loading.noaa_only_new_files=true data_loading.noaa_max_files_per_deployment=1 data_loading.raw_segment_duration=-1
+uv run python utils/datasets_downloads/download_noaa_onms.py data_loading.sources.noaa.only_new_files=true data_loading.sources.noaa.max_files_per_deployment=1 data_loading.raw_segment_duration=-1
 ```
 
 Download only new files, large pack (up to 10 files from each deployment):
 
 ```powershell
-uv run python utils/datasets_downloads/download_noaa_onms.py data_loading.noaa_only_new_files=true data_loading.noaa_max_files_per_deployment=10 data_loading.noaa_hours_per_deployment=999 data_loading.raw_segment_duration=-1
+uv run python utils/datasets_downloads/download_noaa_onms.py data_loading.sources.noaa.only_new_files=true data_loading.sources.noaa.max_files_per_deployment=10 data_loading.sources.noaa.hours_per_deployment=999 data_loading.raw_segment_duration=-1
 ```
 
 Same 4-hour run, but split output into 10-second WAV chunks:
 
 ```powershell
-uv run python utils/datasets_downloads/download_noaa_onms.py data_loading.noaa_only_new_files=true data_loading.noaa_hours_per_deployment=1.34 data_loading.raw_segment_duration=10
+uv run python utils/datasets_downloads/download_noaa_onms.py data_loading.sources.noaa.only_new_files=true data_loading.sources.noaa.hours_per_deployment=1.34 data_loading.raw_segment_duration=10
 ```
 
 Output paths:
@@ -131,17 +135,17 @@ Please cite NOAA SanctSound/ONMS data according to deployment metadata
 Full Orcasound run (all default sources):
 
 ```powershell
-uv run python utils/datasets_downloads/download_orcasound.py data_loading.orcasound_max_files_per_source=null data_loading.orcasound_target_hours_total=null
+uv run python utils/datasets_downloads/download_orcasound.py data_loading.sources.orcasound.max_files_per_source=null data_loading.sources.orcasound.target_hours_total=null
 ```
 
 Small run (~5 hours total) with near-5-minute clips (4-6 min):
 
 ```powershell
-uv run python utils/datasets_downloads/download_orcasound.py data_loading.orcasound_target_hours_total=5 data_loading.orcasound_duration_min_minutes=4 data_loading.orcasound_duration_max_minutes=6 data_loading.orcasound_assume_minutes_per_file=5 data_loading.orcasound_max_files_per_source=null
+uv run python utils/datasets_downloads/download_orcasound.py data_loading.sources.orcasound.target_hours_total=5 data_loading.sources.orcasound.duration_min_minutes=4 data_loading.sources.orcasound.duration_max_minutes=6 data_loading.sources.orcasound.assume_minutes_per_file=5 data_loading.sources.orcasound.max_files_per_source=null
 ```
 
 Note: files outside the duration filter are downloaded for probing and then removed by default
-(`data_loading.orcasound_delete_nonmatching_downloads=true`).
+(`data_loading.sources.orcasound.delete_nonmatching_downloads=true`).
 
 Output paths:
 
@@ -150,6 +154,53 @@ Output paths:
 
 Sources are from AWS Open Data Orcasound registry:
 https://registry.opendata.aws/orcasound/
+
+---
+
+## Scenario 6 - Voxaboxen external SED
+
+Voxaboxen is used as an external checkout, not copied into this repository. This scenario is for checking Voxaboxen on our own Label Studio audio datasets. By default, the config expects the full Voxaboxen repo next to this project as `../voxaboxen`.
+
+Put inputs here or override the paths in the command:
+
+- Audio: `data/voxaboxen/audio/`
+- Label Studio JSON: `data/voxaboxen/annotations/annotations.json`
+- Config: `configs/voxaboxen/voxaboxen.yaml`
+
+```powershell
+# 1. Convert Label Studio annotations to Voxaboxen/Raven format
+uv run python filtering/voxaboxen/prepare_dataset.py
+
+# Example: run a named dataset without editing YAML
+uv run python filtering/voxaboxen/prepare_dataset.py voxaboxen.dataset_name=my_dataset voxaboxen.audio_dir="data/my_dataset/audio" voxaboxen.annotations_json="data/my_dataset/annotations.json"
+
+# 2. Train Voxaboxen through the external checkout
+uv run python filtering/voxaboxen/run_training.py
+
+# 3. Run inference with the trained experiment
+uv run python filtering/voxaboxen/run_inference.py
+```
+
+Default smoke-test settings are small on purpose:
+
+- `n_epochs=2`
+- `batch_size=4`
+- `encoder_type=beats`
+- `bidirectional=true`
+- `n_map=51`
+
+For a longer run without editing YAML:
+
+```powershell
+uv run python filtering/voxaboxen/run_training.py voxaboxen.n_epochs=8 voxaboxen.experiment_name=beats_binary_8ep
+```
+
+Output paths:
+
+- Prepared Voxaboxen dataset: `outputs/voxaboxen/datasets/<dataset_name>/`
+- Voxaboxen project config and runs: `outputs/voxaboxen/projects/<dataset_name>_experiment/`
+- Main comparison metrics: `mean_ap@0.5`, `mean_ap@0.8`
+- `unknown_labels` are treated as background/noise for binary whale-sound detection
 
 ---
 

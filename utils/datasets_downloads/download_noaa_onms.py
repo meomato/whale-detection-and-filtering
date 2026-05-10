@@ -8,7 +8,8 @@ from pathlib import Path
 from typing import Dict, List, Optional
 
 import hydra
-from audio_saver import process_large_audio, sanitize_stem
+from audio_saver import process_large_audio, resolve_min_sample_rate, sanitize_stem
+from manifest_utils import write_manifest
 from omegaconf import DictConfig
 
 
@@ -51,7 +52,6 @@ def _list_objects_json(bucket: str, prefix: str) -> List[Dict[str, int | str]]:
 
 
 def _list_objects_xml(bucket: str, prefix: str) -> List[Dict[str, int | str]]:
-    # Fallback for environments where JSON API is blocked.
     objects: List[Dict[str, int | str]] = []
     marker: Optional[str] = None
     while True:
@@ -96,6 +96,15 @@ def _is_audio_object(name: str) -> bool:
     return ext in {".wav", ".flac", ".aif", ".aiff", ".mp3"}
 
 
+def _source_name_from_prefix(prefix: str) -> str:
+    first_part = _normalize_prefix(prefix).split("/", 1)[0]
+    return sanitize_stem(first_part or "unknown")
+
+
+def _processed_audio_exists(processed_dir: Path, stem: str) -> bool:
+    return any(processed_dir.glob(f"{stem}*.wav"))
+
+
 def _estimate_duration_seconds(
     size_bytes: int,
     sample_rate_hz: int,
@@ -120,13 +129,15 @@ def _download_file(
 
     for attempt in range(1, max_retries + 1):
         try:
-            # Start each retry from scratch to avoid using corrupted partial chunks.
             if tmp_path.exists():
                 tmp_path.unlink()
             if dst_path.exists():
                 dst_path.unlink()
 
-            with urllib.request.urlopen(url, timeout=120) as resp, tmp_path.open("wb") as f:
+            with (
+                urllib.request.urlopen(url, timeout=120) as resp,
+                tmp_path.open("wb") as f,
+            ):
                 while True:
                     chunk = resp.read(1024 * 1024)
                     if not chunk:
@@ -186,41 +197,54 @@ def _pick_random_files(
 @hydra.main(version_base=None, config_path="../../configs", config_name="config")
 def main(config: DictConfig):
     dl = config["data_loading"]
+    noaa_cfg = dl["sources"]["noaa"]
 
-    bucket = str(dl.get("noaa_bucket", "noaa-passive-bioacoustic"))
-    prefixes = list(dl.get("noaa_deployment_prefixes", []))
+    bucket = str(noaa_cfg.get("bucket", "noaa-passive-bioacoustic"))
+    prefixes = list(noaa_cfg.get("deployment_prefixes", []))
     if not prefixes:
         raise ValueError(
-            "data_loading.noaa_deployment_prefixes is empty. "
+            "data_loading.sources.noaa.deployment_prefixes is empty. "
             "Add at least one deployment prefix."
         )
 
     out_root = Path(dl["raw_datasets_path"])
-    out_dir = out_root / str(dl.get("noaa_output_dir", "noaa_onms"))
-    downloads_dir = out_dir / "downloads"
-    processed_dir = out_dir / "audio"
-    downloads_dir.mkdir(parents=True, exist_ok=True)
-    processed_dir.mkdir(parents=True, exist_ok=True)
+    out_dir = out_root / str(noaa_cfg.get("output_dir_name", "noaa_onms"))
+    out_dir.mkdir(parents=True, exist_ok=True)
 
-    # If raw_sample_rate is not set, keep NOAA native 48k to avoid resampling.
     sr_target_cfg = dl.get("raw_sample_rate")
-    if sr_target_cfg is None or str(sr_target_cfg).strip().lower() in {"none", "null", ""}:
-        sr_target = int(dl.get("noaa_assume_sample_rate_hz", 48000))
+    if sr_target_cfg is None or str(sr_target_cfg).strip().lower() in {
+        "none",
+        "null",
+        "",
+    }:
+        sr_target = int(noaa_cfg.get("assume_sample_rate_hz", 48000))
     else:
         sr_target = int(sr_target_cfg)
+
     chunk_sec = float(dl["raw_segment_duration"])
-    target_hours = float(dl.get("noaa_hours_per_deployment", 1.5))
+    min_sample_rate = resolve_min_sample_rate(
+        raw_sample_rate=dl.get("raw_sample_rate"),
+        raw_skip_below_sample_rate=bool(dl.get("raw_skip_below_sample_rate", False)),
+    )
+    target_hours = float(noaa_cfg.get("hours_per_deployment", 1.5))
     target_seconds = target_hours * 3600.0
-    only_new_files = bool(dl.get("noaa_only_new_files", False))
-    max_files_cfg = dl.get("noaa_max_files_per_deployment")
-    if max_files_cfg is None or str(max_files_cfg).strip().lower() in {"none", "null", ""}:
+    only_new_files = bool(noaa_cfg.get("only_new_files", False))
+    delete_downloaded = bool(noaa_cfg.get("delete_downloaded_after_processing", False))
+
+    max_files_cfg = noaa_cfg.get("max_files_per_deployment")
+    if max_files_cfg is None or str(max_files_cfg).strip().lower() in {
+        "none",
+        "null",
+        "",
+    }:
         max_files_per_deployment: Optional[int] = None
     else:
         max_files_per_deployment = int(max_files_cfg)
-    sample_rate_hz = int(dl.get("noaa_assume_sample_rate_hz", 48000))
-    sample_bits = int(dl.get("noaa_sample_bits", 16))
-    channels = int(dl.get("noaa_channels", 1))
-    seed = int(dl.get("noaa_random_seed", 42))
+
+    sample_rate_hz = int(noaa_cfg.get("assume_sample_rate_hz", 48000))
+    sample_bits = int(noaa_cfg.get("sample_bits", 16))
+    channels = int(noaa_cfg.get("channels", 1))
+    seed = int(noaa_cfg.get("random_seed", 42))
 
     total_seconds = [0.0]
     total_downloaded_bytes = 0
@@ -229,6 +253,7 @@ def main(config: DictConfig):
     print(f"Deployments requested: {len(prefixes)}")
     print(f"Target per deployment: {target_hours:.2f} h")
     print(f"Only new files: {only_new_files}")
+    print(f"Delete downloads after processing: {delete_downloaded}")
     print(
         f"Max files per deployment: "
         f"{max_files_per_deployment if max_files_per_deployment is not None else 'unlimited'}"
@@ -242,11 +267,18 @@ def main(config: DictConfig):
         if not prefix.endswith("/"):
             prefix = prefix + "/"
 
-        dep_name = sanitize_stem(Path(prefix.rstrip("/")).name)
-        dep_download_dir = downloads_dir / dep_name
-        dep_download_dir.mkdir(parents=True, exist_ok=True)
+        source_name = _source_name_from_prefix(prefix)
+        source_dir = out_dir / source_name
+        source_audio_dir = source_dir / "audio"
+        source_downloads_dir = source_dir / "downloads"
+        manifest_path = source_dir / "manifest.jsonl"
 
-        print(f"\n=== {dep_name} ===")
+        dep_name = sanitize_stem(Path(prefix.rstrip("/")).name)
+        dep_download_dir = source_downloads_dir / dep_name
+        dep_download_dir.mkdir(parents=True, exist_ok=True)
+        source_audio_dir.mkdir(parents=True, exist_ok=True)
+
+        print(f"\n=== {source_name}/{dep_name} ===")
         print(f"Listing objects under: {prefix}")
         objects = _list_objects(bucket=bucket, prefix=prefix)
         audio_files = [o for o in objects if _is_audio_object(str(o.get("name", "")))]
@@ -262,12 +294,28 @@ def main(config: DictConfig):
                 size = int(item.get("size", 0))
                 src_name = Path(object_name).name
                 local_src = dep_download_dir / src_name
-                if local_src.exists() and local_src.stat().st_size == size:
+                stem = sanitize_stem(f"{dep_name}_{Path(src_name).stem}")
+
+                already_downloaded = (
+                    local_src.exists() and local_src.stat().st_size == size
+                )
+                already_processed = _processed_audio_exists(source_audio_dir, stem)
+
+                if already_downloaded or already_processed:
                     continue
+
                 new_only.append(item)
+
             audio_files = new_only
             if not audio_files:
                 print("No new files left for this deployment, skipping.")
+                manifest_entries = write_manifest(
+                    audio_dir=source_audio_dir,
+                    manifest_path=manifest_path,
+                )
+                print(
+                    f"Manifest entries: {manifest_entries} ({manifest_path.resolve()})"
+                )
                 continue
 
         rng = random.Random(seed + dep_idx)
@@ -287,6 +335,11 @@ def main(config: DictConfig):
             size = int(item.get("size", 0))
             src_name = Path(object_name).name
             local_src = dep_download_dir / src_name
+            stem = sanitize_stem(f"{dep_name}_{Path(src_name).stem}")
+
+            if only_new_files and _processed_audio_exists(source_audio_dir, stem):
+                print(f"Already processed: {src_name}")
+                continue
 
             if not local_src.exists() or local_src.stat().st_size != size:
                 print(f"Downloading [{file_idx + 1}/{len(selected)}]: {src_name}")
@@ -304,24 +357,38 @@ def main(config: DictConfig):
             else:
                 print(f"Already downloaded: {src_name}")
 
-            stem = sanitize_stem(f"{dep_name}_{Path(src_name).stem}")
             try:
                 process_large_audio(
                     src_path=local_src,
-                    out_dir=processed_dir,
+                    out_dir=source_audio_dir,
                     stem_base=stem,
                     total_seconds_ref=total_seconds,
                     sr_target=sr_target,
                     chunk_sec=chunk_sec,
+                    min_sample_rate=min_sample_rate,
                 )
             except Exception as exc:
                 print(f"Error processing '{src_name}': {exc}")
+                continue
+
+            if delete_downloaded:
+                try:
+                    local_src.unlink(missing_ok=True)
+                except Exception as exc:
+                    print(
+                        f"Warning: failed to delete downloaded file '{src_name}': {exc}"
+                    )
+
+        manifest_entries = write_manifest(
+            audio_dir=source_audio_dir,
+            manifest_path=manifest_path,
+        )
+        print(f"Manifest entries: {manifest_entries} ({manifest_path.resolve()})")
 
     print("\nFinished NOAA ONMS sampling")
     print(f"Total duration (output WAVs): {total_seconds[0] / 3600:.2f} h")
     print(f"Downloaded data: {total_downloaded_bytes / (1024**3):.2f} GB")
-    print(f"Download cache dir: {downloads_dir.resolve()}")
-    print(f"Audio dir: {processed_dir.resolve()}")
+    print(f"Dataset dir: {out_dir.resolve()}")
 
 
 if __name__ == "__main__":
