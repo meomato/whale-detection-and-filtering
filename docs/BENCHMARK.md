@@ -63,6 +63,7 @@ The split is file/session-level, not random window-level, to avoid leakage.
 | Perch 2.0 | strong modern bioacoustic baseline | 32 kHz | 5 s | 1536 | GPU via WSL/TensorFlow |
 | Voxaboxen BEATs | acoustic pipeline baseline | 16 kHz | 5 s | 768 | GPU/PyTorch |
 | animal2vec MeerKAT pretrained | main candidate for later fine-tuning | 8 kHz | 5 s | 1024 | GPU via WSL/PyTorch |
+| Wav2Vec2 base | general audio/speech baseline | 16 kHz | 5 s | 768 | GPU/PyTorch |
 
 The animal2vec result below uses the official pretrained checkpoint:
 
@@ -131,6 +132,9 @@ Main plot:
 
 ![Main model comparison](../reports/benchmark_figures/00_model_metric_comparison.png)
 
+The comparison plot includes Perch 2.0, Voxaboxen BEATs, animal2vec
+pretrained, and Wav2Vec2 base across all three annotation sets.
+
 Useful per-run plots are named like:
 
 ```text
@@ -142,6 +146,7 @@ Examples:
 - `perch_v2__annotations_v2__pr.png`
 - `voxaboxen_beats__annotations_v2__confusion.png`
 - `animal2vec_pretrained_meerkat__annotations_v2__epochs.png`
+- `wav2vec2_base__annotations_v2__roc.png`
 
 Plot types:
 
@@ -163,12 +168,15 @@ Main table:
 | Perch 2.0 | all | 1 | 4 | 0.5489 | 0.7025 | 0.6163 | 0.6096 | 0.2569 |
 | Voxaboxen BEATs | all | 4 | 9 | 0.5216 | 0.6823 | 0.5912 | 0.6483 | 0.2779 |
 | animal2vec pretrained | all | 1 | 4 | 0.2797 | 0.4503 | 0.3450 | 0.2685 | 0.5152 |
+| Wav2Vec2 base | all | 9 | 12 | 0.2171 | 0.3558 | 0.2697 | 0.2745 | 0.5697 |
 | Perch 2.0 | v1 | 1 | 4 | 0.4004 | 0.5774 | 0.4729 | 0.3825 | 0.2591 |
 | Voxaboxen BEATs | v1 | 1 | 6 | 0.3776 | 0.6938 | 0.4890 | 0.6180 | 0.3416 |
 | animal2vec pretrained | v1 | 1 | 4 | 0.2406 | 0.5391 | 0.3327 | 0.2363 | 0.5083 |
+| Wav2Vec2 base | v1 | 10 | 13 | 0.1484 | 0.3604 | 0.2102 | 0.1850 | 0.6179 |
 | Perch 2.0 | v2 | 1 | 4 | 0.8946 | 0.8810 | 0.8878 | 0.9705 | 0.2000 |
 | Voxaboxen BEATs | v2 | 1 | 6 | 0.7431 | 0.9424 | 0.8309 | 0.9236 | 0.6161 |
 | animal2vec pretrained | v2 | 2 | 5 | 0.7865 | 0.7018 | 0.7417 | 0.8510 | 0.3602 |
+| Wav2Vec2 base | v2 | 10 | 13 | 0.7294 | 0.5539 | 0.6296 | 0.7740 | 0.3886 |
 
 ## Result Interpretation
 
@@ -212,15 +220,17 @@ The result does not exclude animal2vec from further experiments. The model
 should be evaluated next with full fine-tuning, because it remains the main
 candidate for a task-specific bioacoustic classifier.
 
-## Conclusion
+### Wav2Vec2 base
 
-Based on the frozen-encoder benchmark:
+Wav2Vec2 base was included as a general audio/speech baseline.
 
-1. **Perch 2.0** is selected as the main frozen-encoder baseline.
-2. **Voxaboxen BEATs** is kept as a high-recall baseline.
-3. **animal2vec pretrained** is selected for the next fine-tuning stage rather
-   than as the best frozen encoder.
+It has:
 
-The next important experiment is full animal2vec fine-tuning on the whale
-`sound/noise` labels, then comparing it against the frozen Perch/Voxaboxen
-baselines.
+- lower F1 than all specialized models on `annotations_v2`
+- low performance on `annotations_all` and `annotations_v1`
+- moderate PR-AUC on `annotations_v2`, but lower recall than the bioacoustic
+  baselines
+
+These results indicate that general speech-oriented representations are less
+suitable for this whale sound/noise task than specialized bioacoustic
+representations.

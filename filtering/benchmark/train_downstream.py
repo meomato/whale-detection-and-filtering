@@ -47,6 +47,7 @@ MODEL_LABELS = {
     "animal2vec_pretrained_meerkat": "animal2vec",
     "perch_v2": "Perch 2.0",
     "voxaboxen_beats": "Voxaboxen",
+    "wav2vec2_base": "Wav2Vec2",
 }
 SCENARIO_LABELS = {
     "annotations_all": "all labels",

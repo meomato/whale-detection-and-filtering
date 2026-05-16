@@ -16,10 +16,11 @@ Models:
 - animal2vec_pretrained_meerkat
 - perch_v2
 - voxaboxen_beats
+- wav2vec2_base
 
 Annotation sets:
 - annotations_all
 - annotations_v1
 - annotations_v2
 
-Plots copied: 37
+Plots copied: 49

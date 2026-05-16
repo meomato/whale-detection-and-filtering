@@ -1,4 +1,4 @@
-# cetaceans-filtering
+# whale-detection-and-filtering
 
 Cetacean audio filtering and whale sound/noise classification with pretrained
 bioacoustic and audio encoders.
@@ -16,6 +16,7 @@ filtering/
 |   |-- prepare_sound_noise.py      # Label Studio JSON -> binary sound/noise windows
 |   |-- extract_animal2vec.py       # frozen animal2vec embeddings
 |   |-- extract_voxaboxen_beats.py  # frozen Voxaboxen BEATs embeddings
+|   |-- extract_wav2vec2.py         # frozen Wav2Vec2 embeddings
 |   |-- train_downstream.py         # shared sound/noise classifier on embeddings
 |   |-- summarize_results.py        # summary tables and comparison plots
 |   `-- collect_figures.py          # copy plots into reports/benchmark_figures
@@ -39,7 +40,8 @@ configs/
 
 docs/
 |-- BENCHMARK.md                    # benchmark method, tables, commands, notes
-`-- DATASETS.md                     # dataset and checkpoint notes
+|-- DATASETS.md                     # dataset notes
+`-- MODELS.md                       # pretrained model and checkpoint notes
 
 reports/
 `-- benchmark_figures/              # git-friendly benchmark plots
@@ -73,6 +75,7 @@ Tested models:
 - animal2vec pretrained MeerKAT checkpoint
 - Perch 2.0
 - Voxaboxen BEATs
+- Wav2Vec2 base
 
 Label sets:
 
@@ -86,15 +89,19 @@ Result summary:
 - Voxaboxen BEATs achieved high recall, but produced more false positives.
 - animal2vec showed lower frozen-embedding performance and remains relevant
   for the next fine-tuning stage.
+- Wav2Vec2 base was weaker than the specialized bioacoustic models and is used
+  as a general audio/speech baseline.
 
 | Model | Labels | F1 sound | Recall sound | PR-AUC | FPR |
 |---|---|---:|---:|---:|---:|
 | Perch 2.0 | annotations_v2 | 0.888 | 0.881 | 0.970 | 0.200 |
 | Voxaboxen BEATs | annotations_v2 | 0.831 | 0.942 | 0.924 | 0.616 |
 | animal2vec | annotations_v2 | 0.742 | 0.702 | 0.851 | 0.360 |
+| Wav2Vec2 base | annotations_v2 | 0.630 | 0.554 | 0.774 | 0.389 |
 | Perch 2.0 | annotations_all | 0.616 | 0.703 | 0.610 | 0.257 |
 | Voxaboxen BEATs | annotations_all | 0.591 | 0.682 | 0.648 | 0.278 |
 | animal2vec | annotations_all | 0.345 | 0.450 | 0.268 | 0.515 |
+| Wav2Vec2 base | annotations_all | 0.270 | 0.356 | 0.274 | 0.570 |
 
 ![Benchmark comparison](reports/benchmark_figures/00_model_metric_comparison.png)
 
@@ -102,4 +109,5 @@ More details:
 
 - Full report: [docs/BENCHMARK.md](docs/BENCHMARK.md)
 - Figures: [reports/benchmark_figures](reports/benchmark_figures)
-- Datasets and checkpoints: [docs/DATASETS.md](docs/DATASETS.md)
+- Datasets: [docs/DATASETS.md](docs/DATASETS.md)
+- Models and checkpoints: [docs/MODELS.md](docs/MODELS.md)

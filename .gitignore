@@ -22,6 +22,7 @@ docs/GPU_SETUP.md
 *.index
 
 outputs/
+models/
 
 # Local datasets and private audio. Keep only folder placeholders.
 !data/

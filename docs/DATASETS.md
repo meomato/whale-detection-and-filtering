@@ -1,6 +1,6 @@
-# Datasets And Checkpoints
+# Datasets
 
-This file keeps the longer dataset and checkpoint notes out of the main README.
+This file keeps the longer dataset notes out of the main README.
 
 ## Python Setup
 
@@ -91,10 +91,10 @@ Output paths:
 
 Source registry: https://registry.opendata.aws/orcasound/
 
-## Voxaboxen
+## Voxaboxen Input Data
 
-Voxaboxen is used as an external checkout, not copied into this repository.
-The default config expects it next to this project as `../voxaboxen`.
+These paths are used only for preparing project-local Voxaboxen input data.
+The model and checkpoint notes are described in `docs/MODELS.md`.
 
 Input defaults:
 
@@ -118,30 +118,4 @@ Longer training run:
 
 ```powershell
 uv run python filtering/voxaboxen/run_training.py voxaboxen.n_epochs=8 voxaboxen.experiment_name=beats_binary_8ep
-```
-
-## animal2vec Checkpoint
-
-The benchmark uses the official pretrained MeerKAT checkpoint:
-
-```text
-animal2vec_large_pretrained_MeerKAT_240507.pt
-```
-
-Source:
-
-- Edmond dataset: https://edmond.mpg.de/dataset.xhtml?persistentId=doi:10.17617/3.ETPUKU
-- DOI: `10.17617/3.ETPUKU`
-- datafile id used by the helper script: `253220`
-
-Expected checkpoint location inside the external animal2vec checkout:
-
-```text
-<animal2vec_repo>/checkpoints/animal2vec_large_pretrained_MeerKAT_240507.pt
-```
-
-Download helper for WSL:
-
-```bash
-bash scripts/download_animal2vec_pretrained.sh
 ```

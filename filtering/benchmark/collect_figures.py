@@ -71,6 +71,7 @@ def collect(args: argparse.Namespace) -> None:
                 "- animal2vec_pretrained_meerkat",
                 "- perch_v2",
                 "- voxaboxen_beats",
+                "- wav2vec2_base",
                 "",
                 "Annotation sets:",
                 "- annotations_all",
