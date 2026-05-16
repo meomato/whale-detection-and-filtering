@@ -5,3 +5,4 @@ defaults:
   - sound_event_detection: convert_annotations_to_manifest
   - sed_training: train_sed_classifier
   - voxaboxen: voxaboxen
+  - benchmark: benchmark

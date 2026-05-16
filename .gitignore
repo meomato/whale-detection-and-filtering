@@ -9,13 +9,11 @@ wheels/
 # Virtual environments
 .venv
 
-data/watkins/
-data/sound-event-detection/
-data/noaa_onms/
-data/orcasound/
-
 # Local IDE settings
 .idea/
+
+# Local machine notes
+docs/GPU_SETUP.md
 
 # Local DB artifacts
 *.sqlite
@@ -24,8 +22,8 @@ data/orcasound/
 *.index
 
 outputs/
-data/
-# Voxaboxen local input data (large/private); keep only folder placeholders.
+
+# Local datasets and private audio. Keep only folder placeholders.
 !data/
 data/*
 !data/.gitkeep
@@ -33,7 +31,7 @@ data/*
 data/voxaboxen/*
 !data/voxaboxen/audio/
 !data/voxaboxen/annotations/
-data/voxaboxen/audio/*
-data/voxaboxen/annotations/*
+data/voxaboxen/audio/**
+data/voxaboxen/annotations/**
 !data/voxaboxen/audio/.gitkeep
 !data/voxaboxen/annotations/.gitkeep

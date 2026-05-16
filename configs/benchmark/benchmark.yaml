@@ -1,0 +1,23 @@
+# Benchmark data and downstream-classifier settings.
+#
+# Source data stay outside the repository. Scripts write compact manifests,
+# split tables, metrics, and figures under output_dir.
+
+audio_dir: data/benchmark/audio
+annotation1_json: data/benchmark/annotations/annotations_v1.json
+annotation2_json: data/benchmark/annotations/annotations_v2.json
+output_dir: outputs/benchmark
+
+seed: 42
+val_fraction: 0.15
+
+# Window labels used for embedding/downstream-classifier benchmarks.
+window_size_s: 5.0
+hop_size_s: 5.0
+min_sound_overlap_s: 0.1
+
+# For CPU-limited runs this is intentionally short. Raise on GPU.
+downstream_epochs: 8
+early_stopping_patience: 3
+learning_rate: 0.001
+batch_size: 256

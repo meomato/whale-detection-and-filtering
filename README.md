@@ -1,25 +1,24 @@
 # cetaceans-filtering
 
-Cetacean audio filtering and classification built on [Perch](https://github.com/google-research/perch-hoplite) embeddings.
+Cetacean audio filtering and whale sound/noise classification with pretrained
+bioacoustic and audio encoders.
 
-## Setup
+The project includes data preparation, embedding extraction, downstream
+classification, and benchmark reporting for several pretrained models.
 
-```bash
-uv sync              # base deps
-uv sync --group perch  # Perch + TensorFlow (needed for embedding)
-```
-
-All scripts use [Hydra](https://hydra.cc). Override any config value inline: `key=value`.
-Full parameter docs live in each YAML under `configs/`.
-
----
-
-## Project structure
+## Project Structure
 
 ```text
 filtering/
 |-- embed/
 |   `-- perch_v2_embed.py           # compute Perch embeddings for any audio dataset
+|-- benchmark/
+|   |-- prepare_sound_noise.py      # Label Studio JSON -> binary sound/noise windows
+|   |-- extract_animal2vec.py       # frozen animal2vec embeddings
+|   |-- extract_voxaboxen_beats.py  # frozen Voxaboxen BEATs embeddings
+|   |-- train_downstream.py         # shared sound/noise classifier on embeddings
+|   |-- summarize_results.py        # summary tables and comparison plots
+|   `-- collect_figures.py          # copy plots into reports/benchmark_figures
 |-- watkins/
 |   |-- train_classifier.py         # multiclass species classifier
 |   `-- classifier/                 # data loading, metrics, reporting, pipeline
@@ -32,192 +31,75 @@ filtering/
     |-- run_training.py             # call external Voxaboxen training
     `-- run_inference.py            # call external Voxaboxen inference
 
+configs/
+|-- benchmark/                      # benchmark windowing and classifier settings
+|-- perch_embeddings/               # Perch embedding configs
+|-- data_loading/                   # public dataset download settings
+`-- voxaboxen/                      # external Voxaboxen run settings
+
+docs/
+|-- BENCHMARK.md                    # benchmark method, tables, commands, notes
+`-- DATASETS.md                     # dataset and checkpoint notes
+
+reports/
+`-- benchmark_figures/              # git-friendly benchmark plots
+
 utils/
 `-- datasets_downloads/
     |-- download_watkins.py         # download Watkins marine mammal dataset
     |-- download_noaa_onms.py       # sample small subsets from NOAA ONMS / SanctSound
     |-- download_orcasound.py       # download and process Orcasound AWS Open Data
     `-- download_manual_sed.py      # download manual SED dataset from Google Drive
+
+scripts/
+|-- download_animal2vec_pretrained.sh
+|-- run_animal2vec_pretrained_chunk.sh
+`-- run_animal2vec_pretrained_chunks.sh
 ```
 
----
+## Current Benchmark
 
-## Scenario 1 - Watkins species classifier
+The benchmark evaluates pretrained encoders as frozen feature extractors for a
+binary whale sound detection task. A shared downstream classifier is trained on
+top of each embedding set.
 
-```bash
-# 1. Download dataset
-uv run python utils/datasets_downloads/download_watkins.py
+Class mapping:
 
-# 2. Compute embeddings
-uv run python filtering/embed/perch_v2_embed.py
+- `sound`: target whale sounds
+- `noise`: background, silence, artifacts, and non-target audio
 
-# 3. Train multiclass classifier  (labels parsed from filenames)
-uv run python filtering/watkins/train_classifier.py
-```
+Tested models:
 
----
+- animal2vec pretrained MeerKAT checkpoint
+- Perch 2.0
+- Voxaboxen BEATs
 
-## Scenario 2 - SED sound/noise binary classifier
+Label sets:
 
-```bash
-# 1. Download folder from Google Drive
+- `annotations_all`: both annotation exports merged
+- `annotations_v1`: first annotation export only
+- `annotations_v2`: second annotation export only
 
-# 2. Convert annotations JSON -> flat manifest CSV
-uv run python filtering/sed/convert_annotations.py
+Result summary:
 
-# 3. Compute embeddings  (set audio_dir + dataset_name in perch_embeddings config)
-uv run python filtering/embed/perch_v2_embed.py
+- Perch 2.0 achieved the best overall frozen-encoder results.
+- Voxaboxen BEATs achieved high recall, but produced more false positives.
+- animal2vec showed lower frozen-embedding performance and remains relevant
+  for the next fine-tuning stage.
 
-# 4. Train binary classifier  (window-level: sound vs noise)
-uv run python filtering/sed/train_classifier.py
-```
+| Model | Labels | F1 sound | Recall sound | PR-AUC | FPR |
+|---|---|---:|---:|---:|---:|
+| Perch 2.0 | annotations_v2 | 0.888 | 0.881 | 0.970 | 0.200 |
+| Voxaboxen BEATs | annotations_v2 | 0.831 | 0.942 | 0.924 | 0.616 |
+| animal2vec | annotations_v2 | 0.742 | 0.702 | 0.851 | 0.360 |
+| Perch 2.0 | annotations_all | 0.616 | 0.703 | 0.610 | 0.257 |
+| Voxaboxen BEATs | annotations_all | 0.591 | 0.682 | 0.648 | 0.278 |
+| animal2vec | annotations_all | 0.345 | 0.450 | 0.268 | 0.515 |
 
-**Label logic per 5s window:**
+![Benchmark comparison](reports/benchmark_figures/00_model_metric_comparison.png)
 
-- overlaps a `sound` event by >= `min_overlap_s` -> `sound`
-- otherwise -> `noise`
-- artifact windows: kept as `noise` (`treat_artifact_as_noise=true`) or excluded (`false`)
+More details:
 
----
-
-## Scenario 3 - Re-embed with a different model
-
-```bash
-uv run python filtering/embed/perch_v2_embed.py \
-  perch_embeddings.model_name=surfperch \
-  perch_embeddings.drop_existing_db=true
-# then re-run the relevant classifier script
-```
-
----
-
-## Scenario 4 - NOAA ONMS / SanctSound
-
-Deployment list is configured in `configs/data_loading/data_loading.yaml`
-via `data_loading.sources.noaa.deployment_prefixes`.
-
-Download only new files, about 4 hours per run (no chunking):
-
-```powershell
-uv run python utils/datasets_downloads/download_noaa_onms.py data_loading.sources.noaa.only_new_files=true data_loading.sources.noaa.hours_per_deployment=1.34 data_loading.raw_segment_duration=-1
-```
-
-Download only new files, exactly 1 file from each deployment:
-
-```powershell
-uv run python utils/datasets_downloads/download_noaa_onms.py data_loading.sources.noaa.only_new_files=true data_loading.sources.noaa.max_files_per_deployment=1 data_loading.raw_segment_duration=-1
-```
-
-Download only new files, large pack (up to 10 files from each deployment):
-
-```powershell
-uv run python utils/datasets_downloads/download_noaa_onms.py data_loading.sources.noaa.only_new_files=true data_loading.sources.noaa.max_files_per_deployment=10 data_loading.sources.noaa.hours_per_deployment=999 data_loading.raw_segment_duration=-1
-```
-
-Same 4-hour run, but split output into 10-second WAV chunks:
-
-```powershell
-uv run python utils/datasets_downloads/download_noaa_onms.py data_loading.sources.noaa.only_new_files=true data_loading.sources.noaa.hours_per_deployment=1.34 data_loading.raw_segment_duration=10
-```
-
-Output paths:
-
-- Download cache (original NOAA files): `data/noaa_onms/downloads/...`
-- Output audio for labeling/training: `data/noaa_onms/audio/...`
-
-Please cite NOAA SanctSound/ONMS data according to deployment metadata
-(DOI: https://doi.org/10.25921/saca-sp25).
-
----
-
-## Scenario 5 - Orcasound (AWS Open Data)
-
-Full Orcasound run (all default sources):
-
-```powershell
-uv run python utils/datasets_downloads/download_orcasound.py data_loading.sources.orcasound.max_files_per_source=null data_loading.sources.orcasound.target_hours_total=null
-```
-
-Small run (~5 hours total) with near-5-minute clips (4-6 min):
-
-```powershell
-uv run python utils/datasets_downloads/download_orcasound.py data_loading.sources.orcasound.target_hours_total=5 data_loading.sources.orcasound.duration_min_minutes=4 data_loading.sources.orcasound.duration_max_minutes=6 data_loading.sources.orcasound.assume_minutes_per_file=5 data_loading.sources.orcasound.max_files_per_source=null
-```
-
-Note: files outside the duration filter are downloaded for probing and then removed by default
-(`data_loading.sources.orcasound.delete_nonmatching_downloads=true`).
-
-Output paths:
-
-- Download cache (original Orcasound files): `data/orcasound/downloads/...`
-- Output audio for labeling/training: `data/orcasound/audio/...`
-
-Sources are from AWS Open Data Orcasound registry:
-https://registry.opendata.aws/orcasound/
-
----
-
-## Scenario 6 - Voxaboxen external SED
-
-Voxaboxen is used as an external checkout, not copied into this repository. This scenario is for checking Voxaboxen on our own Label Studio audio datasets. By default, the config expects the full Voxaboxen repo next to this project as `../voxaboxen`.
-
-Put inputs here or override the paths in the command:
-
-- Audio: `data/voxaboxen/audio/`
-- Label Studio JSON: `data/voxaboxen/annotations/annotations.json`
-- Config: `configs/voxaboxen/voxaboxen.yaml`
-
-```powershell
-# 1. Convert Label Studio annotations to Voxaboxen/Raven format
-uv run python filtering/voxaboxen/prepare_dataset.py
-
-# Example: run a named dataset without editing YAML
-uv run python filtering/voxaboxen/prepare_dataset.py voxaboxen.dataset_name=my_dataset voxaboxen.audio_dir="data/my_dataset/audio" voxaboxen.annotations_json="data/my_dataset/annotations.json"
-
-# 2. Train Voxaboxen through the external checkout
-uv run python filtering/voxaboxen/run_training.py
-
-# 3. Run inference with the trained experiment
-uv run python filtering/voxaboxen/run_inference.py
-```
-
-Default smoke-test settings are small on purpose:
-
-- `n_epochs=2`
-- `batch_size=4`
-- `encoder_type=beats`
-- `bidirectional=true`
-- `n_map=51`
-
-For a longer run without editing YAML:
-
-```powershell
-uv run python filtering/voxaboxen/run_training.py voxaboxen.n_epochs=8 voxaboxen.experiment_name=beats_binary_8ep
-```
-
-Output paths:
-
-- Prepared Voxaboxen dataset: `outputs/voxaboxen/datasets/<dataset_name>/`
-- Voxaboxen project config and runs: `outputs/voxaboxen/projects/<dataset_name>_experiment/`
-- Main comparison metrics: `mean_ap@0.5`, `mean_ap@0.8`
-- `unknown_labels` are treated as background/noise for binary whale-sound detection
-
----
-
-## Outputs
-
-| File             | Description                                          |
-| ---------------- | ---------------------------------------------------- |
-| `embeddings.npy` | `[N, 1280]` float32 array, one row per 5s window     |
-| `manifest.csv`   | Window index, filename, start/end time               |
-| `model.joblib`   | `{"model": Pipeline, "label_encoder": LabelEncoder}` |
-| `metrics.json`   | Full per-class metrics and confusion matrices        |
-| `summary.json`   | Macro-F1 per split + report image paths              |
-
-```python
-import joblib
-bundle = joblib.load("outputs/.../model.joblib")
-labels = bundle["label_encoder"].inverse_transform(
-    bundle["model"].predict(X)  # X: [M, 1280] numpy array
-)
-```
+- Full report: [docs/BENCHMARK.md](docs/BENCHMARK.md)
+- Figures: [reports/benchmark_figures](reports/benchmark_figures)
+- Datasets and checkpoints: [docs/DATASETS.md](docs/DATASETS.md)

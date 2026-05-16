@@ -24,6 +24,20 @@ from perch_hoplite.db import sqlite_usearch_impl
 from perch_hoplite.zoo import model_configs
 
 
+def maybe_patch_kagglehub_timeouts(connect_timeout_s: int | None, read_timeout_s: int | None) -> None:
+    """Increase kagglehub model-download timeouts without changing Perch code."""
+    if connect_timeout_s is None and read_timeout_s is None:
+        return
+    try:
+        import kagglehub.clients as kaggle_clients
+    except ImportError:
+        return
+    if connect_timeout_s is not None:
+        kaggle_clients.DEFAULT_CONNECT_TIMEOUT = int(connect_timeout_s)
+    if read_timeout_s is not None:
+        kaggle_clients.DEFAULT_READ_TIMEOUT = int(read_timeout_s)
+
+
 def build_worker(
     audio_dir: str,
     file_glob: str,
@@ -163,6 +177,11 @@ def main(config: DictConfig) -> None:
 
     if cfg["drop_existing_db"]:
         maybe_drop_existing_db(db_path)
+
+    maybe_patch_kagglehub_timeouts(
+        cfg.get("kagglehub_connect_timeout_s"),
+        cfg.get("kagglehub_read_timeout_s"),
+    )
 
     worker, db = build_worker(
         audio_dir=audio_dir,

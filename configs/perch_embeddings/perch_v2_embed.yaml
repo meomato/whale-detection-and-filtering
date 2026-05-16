@@ -46,3 +46,9 @@ drop_existing_db: true
 # save_per_clip_npy:
 #   If true, also save each window embedding as an individual .npy file.
 save_per_clip_npy: false
+#
+# kagglehub_*_timeout_s:
+#   Perch 2.0 presets are downloaded through kagglehub when not cached.
+#   Kagglehub defaults can be too short on Windows/network-constrained runs.
+kagglehub_connect_timeout_s: 60
+kagglehub_read_timeout_s: 600
