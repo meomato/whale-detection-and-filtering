@@ -1,6 +1,6 @@
 # Datasets
 
-This file keeps the longer dataset notes out of the main README.
+Dataset notes and download commands.
 
 ## Python Setup
 

@@ -1,22 +1,23 @@
 # Models
 
-This file lists the pretrained encoders used in the frozen benchmark.
+Pretrained encoders used in the frozen benchmark.
 
 ## Perch 2.0
 
-Perch 2.0 is used as a bioacoustic baseline through the project embedding
-wrapper:
+Perch 2.0 runs through the project embedding wrapper:
 
 ```text
 filtering/embed/perch_v2_embed.py
 ```
 
-Benchmark settings:
+5-second benchmark settings:
 
 - sample rate: `32 kHz`
 - window size: `5 s`
 - embedding dimension: `1536`
 - encoder state: frozen
+
+The 1-second benchmark uses `1 s` shards with `1 s` hop.
 
 Source:
 
@@ -24,8 +25,7 @@ Source:
 
 ## Voxaboxen BEATs
 
-Voxaboxen is used as an external checkout and is not copied into this
-repository.
+Voxaboxen stays as an external checkout and is not copied into this repository.
 
 Benchmark wrapper:
 
@@ -33,12 +33,14 @@ Benchmark wrapper:
 filtering/benchmark/extract_voxaboxen_beats.py
 ```
 
-Benchmark settings:
+5-second benchmark settings:
 
 - sample rate: `16 kHz`
 - window size: `5 s`
 - embedding dimension: `768`
 - encoder state: frozen
+
+The 1-second benchmark uses `1 s` windows with `1 s` hop.
 
 Expected checkpoint:
 
@@ -48,7 +50,7 @@ BEATs_iter3_plus_AS2M_finetuned_on_AS2M_cpt2.pt
 
 ## animal2vec
 
-The benchmark uses the official pretrained MeerKAT checkpoint:
+Official pretrained MeerKAT checkpoint:
 
 ```text
 animal2vec_large_pretrained_MeerKAT_240507.pt
@@ -60,12 +62,14 @@ Benchmark wrapper:
 filtering/benchmark/extract_animal2vec.py
 ```
 
-Benchmark settings:
+5-second benchmark settings:
 
 - sample rate: `8 kHz`
 - window size: `5 s`
 - embedding dimension: `1024`
 - encoder state: frozen
+
+The 1-second benchmark uses `1 s` windows with `1 s` hop.
 
 Source:
 
@@ -87,7 +91,7 @@ bash scripts/download_animal2vec_pretrained.sh
 
 ## Wav2Vec2 Base
 
-Wav2Vec2 base is included as a general audio/speech baseline.
+Wav2Vec2 base is the general audio/speech baseline.
 
 Benchmark wrapper:
 
@@ -95,7 +99,7 @@ Benchmark wrapper:
 filtering/benchmark/extract_wav2vec2.py
 ```
 
-Benchmark settings:
+5-second benchmark settings:
 
 - model: `facebook/wav2vec2-base`
 - sample rate: `16 kHz`
@@ -104,7 +108,9 @@ Benchmark settings:
 - embedding rule: mean pooling over the final hidden state
 - encoder state: frozen
 
-Local model files are stored outside git under:
+The 1-second benchmark uses `1 s` windows with `1 s` hop.
+
+Local model files stay outside git:
 
 ```text
 models/wav2vec2_base/
@@ -115,4 +121,3 @@ Source:
 - Hugging Face model card: https://huggingface.co/facebook/wav2vec2-base
 - Hugging Face Transformers Wav2Vec2 documentation:
   https://huggingface.co/docs/transformers/en/model_doc/wav2vec2
-

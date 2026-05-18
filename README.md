@@ -1,10 +1,7 @@
 # whale-detection-and-filtering
 
-Cetacean audio filtering and whale sound/noise classification with pretrained
-bioacoustic and audio encoders.
-
-The project includes data preparation, embedding extraction, downstream
-classification, and benchmark reporting for several pretrained models.
+Whale sound/noise classification with frozen pretrained audio encoders and a
+shared downstream classifier.
 
 ## Project Structure
 
@@ -14,6 +11,7 @@ filtering/
 |   `-- perch_v2_embed.py           # compute Perch embeddings for any audio dataset
 |-- benchmark/
 |   |-- prepare_sound_noise.py      # Label Studio JSON -> binary sound/noise windows
+|   |-- prepare_windows_from_manifests.py # rebuild windows from saved manifests
 |   |-- extract_animal2vec.py       # frozen animal2vec embeddings
 |   |-- extract_voxaboxen_beats.py  # frozen Voxaboxen BEATs embeddings
 |   |-- extract_wav2vec2.py         # frozen Wav2Vec2 embeddings
@@ -44,7 +42,8 @@ docs/
 `-- MODELS.md                       # pretrained model and checkpoint notes
 
 reports/
-`-- benchmark_figures/              # git-friendly benchmark plots
+|-- benchmark_figures/              # 5-second benchmark plots
+`-- benchmark_1s_figures/           # 1-second benchmark plots
 
 utils/
 `-- datasets_downloads/
@@ -59,55 +58,36 @@ scripts/
 `-- run_animal2vec_pretrained_chunks.sh
 ```
 
-## Current Benchmark
+## Main Results
 
-The benchmark evaluates pretrained encoders as frozen feature extractors for a
-binary whale sound detection task. A shared downstream classifier is trained on
-top of each embedding set.
+Benchmark here means that pretrained models are used only as feature
+extractors. Their weights are frozen, embeddings are extracted from the same
+audio windows, and the same simple `sound/noise` classifier is trained on top.
 
-Class mapping:
+Two runs are reported:
 
-- `sound`: target whale sounds
-- `noise`: background, silence, artifacts, and non-target audio
+- `5-second`: full-clip windows, used as the coarse baseline.
+- `1-second`: shorter windows, used because whale sounds can occupy only part
+  of a clip.
 
-Tested models:
+Best `annotations_v2` results:
 
-- animal2vec pretrained MeerKAT checkpoint
-- Perch 2.0
-- Voxaboxen BEATs
-- Wav2Vec2 base
+| Benchmark | Best model | mAP/AP | F1 | Precision | Recall | FPR |
+|---|---|---:|---:|---:|---:|---:|
+| 5-second | Perch 2.0 | 0.970 | 0.888 | 0.895 | 0.881 | 0.200 |
+| 1-second | Perch 2.0 | 0.934 | 0.816 | 0.886 | 0.757 | 0.186 |
 
-Label sets:
+Voxaboxen BEATs gives high recall, especially on `annotations_v2`, but also
+more false positives. animal2vec stays as the main candidate for later full
+fine-tuning. Wav2Vec2 works as a general audio baseline.
 
-- `annotations_all`: both annotation exports merged
-- `annotations_v1`: first annotation export only
-- `annotations_v2`: second annotation export only
+Main plots:
 
-Result summary:
+- [5-second figures](reports/benchmark_figures)
+- [1-second figures](reports/benchmark_1s_figures)
 
-- Perch 2.0 achieved the best overall frozen-encoder results.
-- Voxaboxen BEATs achieved high recall, but produced more false positives.
-- animal2vec showed lower frozen-embedding performance and remains relevant
-  for the next fine-tuning stage.
-- Wav2Vec2 base was weaker than the specialized bioacoustic models and is used
-  as a general audio/speech baseline.
+Full notes:
 
-| Model | Labels | F1 sound | Recall sound | PR-AUC | FPR |
-|---|---|---:|---:|---:|---:|
-| Perch 2.0 | annotations_v2 | 0.888 | 0.881 | 0.970 | 0.200 |
-| Voxaboxen BEATs | annotations_v2 | 0.831 | 0.942 | 0.924 | 0.616 |
-| animal2vec | annotations_v2 | 0.742 | 0.702 | 0.851 | 0.360 |
-| Wav2Vec2 base | annotations_v2 | 0.630 | 0.554 | 0.774 | 0.389 |
-| Perch 2.0 | annotations_all | 0.616 | 0.703 | 0.610 | 0.257 |
-| Voxaboxen BEATs | annotations_all | 0.591 | 0.682 | 0.648 | 0.278 |
-| animal2vec | annotations_all | 0.345 | 0.450 | 0.268 | 0.515 |
-| Wav2Vec2 base | annotations_all | 0.270 | 0.356 | 0.274 | 0.570 |
-
-![Benchmark comparison](reports/benchmark_figures/00_model_metric_comparison.png)
-
-More details:
-
-- Full report: [docs/BENCHMARK.md](docs/BENCHMARK.md)
-- Figures: [reports/benchmark_figures](reports/benchmark_figures)
-- Datasets: [docs/DATASETS.md](docs/DATASETS.md)
-- Models and checkpoints: [docs/MODELS.md](docs/MODELS.md)
+- [Benchmark report](docs/BENCHMARK.md)
+- [Datasets](docs/DATASETS.md)
+- [Models and checkpoints](docs/MODELS.md)

@@ -37,12 +37,13 @@ from sklearn.utils.class_weight import compute_class_weight
 
 CLASSES = np.array([0, 1], dtype=np.int64)
 CLASS_NAMES = ["noise", "sound"]
-COLOR_F1 = "#3A6EA5"
-COLOR_PRECISION = "#E07A5F"
-COLOR_RECALL = "#59A14F"
-COLOR_CURVE = "#3A6EA5"
-COLOR_PR = "#E07A5F"
-COLOR_GRID = "#D8DEE9"
+COLOR_F1 = "#0F4C5C"
+COLOR_PRECISION = "#D97757"
+COLOR_RECALL = "#2A9D8F"
+COLOR_CURVE = "#0F4C5C"
+COLOR_PR = "#D97757"
+COLOR_GRID = "#DCE6E8"
+COLOR_CONFUSION = "YlGnBu"
 MODEL_LABELS = {
     "animal2vec_pretrained_meerkat": "animal2vec",
     "perch_v2": "Perch 2.0",
@@ -72,6 +73,195 @@ def _load_sound_events(path: Path) -> dict[str, list[tuple[float, float]]]:
     for filename in events:
         events[filename].sort()
     return events
+
+
+def _merge_intervals(intervals: list[tuple[float, float]], max_gap_s: float = 0.0) -> list[tuple[float, float]]:
+    if not intervals:
+        return []
+    intervals = sorted((float(start), float(end)) for start, end in intervals if float(end) > float(start))
+    merged = [intervals[0]]
+    for start, end in intervals[1:]:
+        prev_start, prev_end = merged[-1]
+        if start <= prev_end + max_gap_s:
+            merged[-1] = (prev_start, max(prev_end, end))
+        else:
+            merged.append((start, end))
+    return merged
+
+
+def _events_from_windows(
+    windows: pd.DataFrame,
+    positive_mask: np.ndarray,
+    max_gap_s: float,
+) -> dict[str, list[tuple[float, float]]]:
+    events: dict[str, list[tuple[float, float]]] = {}
+    if len(windows) == 0:
+        return events
+    tmp = windows.loc[positive_mask, ["filename", "start_s", "end_s"]].copy()
+    for filename, group in tmp.groupby("filename", sort=False):
+        intervals = [(float(row.start_s), float(row.end_s)) for row in group.itertuples(index=False)]
+        events[str(filename)] = _merge_intervals(intervals, max_gap_s=max_gap_s)
+    return events
+
+
+def _clip_events_to_windows(
+    events: dict[str, list[tuple[float, float]]],
+    windows: pd.DataFrame,
+) -> dict[str, list[tuple[float, float]]]:
+    clipped: dict[str, list[tuple[float, float]]] = {}
+    for filename, group in windows.groupby("filename", sort=False):
+        file_start = float(group["start_s"].min())
+        file_end = float(group["end_s"].max())
+        intervals: list[tuple[float, float]] = []
+        for start, end in events.get(str(filename), []):
+            overlap_start = max(file_start, float(start))
+            overlap_end = min(file_end, float(end))
+            if overlap_end > overlap_start:
+                intervals.append((overlap_start, overlap_end))
+        clipped[str(filename)] = _merge_intervals(intervals)
+    return clipped
+
+
+def _interval_iou(a: tuple[float, float], b: tuple[float, float]) -> float:
+    overlap = max(0.0, min(a[1], b[1]) - max(a[0], b[0]))
+    if overlap <= 0:
+        return 0.0
+    union = max(a[1], b[1]) - min(a[0], b[0])
+    return float(overlap / union) if union > 0 else 0.0
+
+
+def _match_events(
+    true_events: dict[str, list[tuple[float, float]]],
+    pred_events: dict[str, list[tuple[float, float]]],
+    iou_threshold: float,
+) -> tuple[int, int, int, list[float], list[float], list[float]]:
+    tp = fp = fn = 0
+    matched_ious: list[float] = []
+    start_errors: list[float] = []
+    end_errors: list[float] = []
+    filenames = sorted(set(true_events) | set(pred_events))
+    for filename in filenames:
+        true_list = true_events.get(filename, [])
+        pred_list = pred_events.get(filename, [])
+        candidates: list[tuple[float, int, int]] = []
+        for pred_idx, pred in enumerate(pred_list):
+            for true_idx, true in enumerate(true_list):
+                iou = _interval_iou(pred, true)
+                if iou >= iou_threshold:
+                    candidates.append((iou, pred_idx, true_idx))
+        candidates.sort(reverse=True)
+        used_pred: set[int] = set()
+        used_true: set[int] = set()
+        for iou, pred_idx, true_idx in candidates:
+            if pred_idx in used_pred or true_idx in used_true:
+                continue
+            used_pred.add(pred_idx)
+            used_true.add(true_idx)
+            matched_ious.append(float(iou))
+            pred = pred_list[pred_idx]
+            true = true_list[true_idx]
+            start_errors.append(abs(float(pred[0]) - float(true[0])))
+            end_errors.append(abs(float(pred[1]) - float(true[1])))
+        tp += len(used_true)
+        fp += len(pred_list) - len(used_pred)
+        fn += len(true_list) - len(used_true)
+    return tp, fp, fn, matched_ious, start_errors, end_errors
+
+
+def _event_metrics_for_threshold(
+    test_table: pd.DataFrame,
+    scores: np.ndarray,
+    true_events: dict[str, list[tuple[float, float]]],
+    threshold: float,
+    iou_threshold: float,
+    max_gap_s: float,
+) -> dict:
+    pred_events = _events_from_windows(test_table, scores >= threshold, max_gap_s=max_gap_s)
+    tp, fp, fn, ious, start_errors, end_errors = _match_events(true_events, pred_events, iou_threshold)
+    precision = tp / (tp + fp) if (tp + fp) else 0.0
+    recall = tp / (tp + fn) if (tp + fn) else 0.0
+    f1 = (2 * precision * recall / (precision + recall)) if (precision + recall) else 0.0
+
+    if "duration_s" in test_table.columns:
+        evaluated_seconds = float(test_table.drop_duplicates("filename")["duration_s"].astype(float).sum())
+    else:
+        evaluated_seconds = 0.0
+        for _, group in test_table.groupby("filename", sort=False):
+            evaluated_seconds += float(group["end_s"].astype(float).max() - group["start_s"].astype(float).min())
+    evaluated_hours = evaluated_seconds / 3600.0
+    pred_sound_seconds = sum(end - start for events in pred_events.values() for start, end in events)
+    return {
+        "threshold": float(threshold),
+        "event_iou_threshold": float(iou_threshold),
+        "event_tp": int(tp),
+        "event_fp": int(fp),
+        "event_fn": int(fn),
+        "event_precision": float(precision),
+        "event_recall": float(recall),
+        "event_f1": float(f1),
+        "event_false_alarm_rate_per_hour": float(fp / evaluated_hours) if evaluated_hours > 0 else 0.0,
+        "event_false_alarm_rate_per_eval_hour": float(fp / evaluated_hours) if evaluated_hours > 0 else 0.0,
+        "mean_event_iou": float(np.mean(ious)) if ious else 0.0,
+        "median_start_error_s": float(np.median(start_errors)) if start_errors else None,
+        "median_end_error_s": float(np.median(end_errors)) if end_errors else None,
+        "predicted_sound_minutes_per_hour": float((pred_sound_seconds / 60.0) / evaluated_hours)
+        if evaluated_hours > 0
+        else 0.0,
+        "evaluated_hours": evaluated_hours,
+        "evaluated_noise_hours": evaluated_hours,
+    }
+
+
+def _recall_at_far(
+    test_table: pd.DataFrame,
+    scores: np.ndarray,
+    true_events: dict[str, list[tuple[float, float]]],
+    far_limits: tuple[float, ...],
+    iou_threshold: float,
+    max_gap_s: float,
+) -> dict[str, float | None]:
+    thresholds = np.linspace(0.0, 1.0, 101)
+    out: dict[str, float | None] = {f"event_recall_at_far_{limit:g}_per_hour": None for limit in far_limits}
+    best: dict[float, float] = {limit: -1.0 for limit in far_limits}
+    for threshold in thresholds:
+        metrics = _event_metrics_for_threshold(test_table, scores, true_events, float(threshold), iou_threshold, max_gap_s)
+        far = metrics["event_false_alarm_rate_per_hour"]
+        for limit in far_limits:
+            if far <= limit and metrics["event_recall"] > best[limit]:
+                best[limit] = float(metrics["event_recall"])
+                out[f"event_recall_at_far_{limit:g}_per_hour"] = float(metrics["event_recall"])
+    return out
+
+
+def _detection_metrics(
+    test_table: pd.DataFrame,
+    scores: np.ndarray,
+    annotations: Path,
+    iou_threshold: float,
+    max_gap_s: float,
+    threshold: float,
+) -> dict:
+    all_true_events = _load_sound_events(annotations)
+    true_events = _clip_events_to_windows(all_true_events, test_table)
+    metrics = _event_metrics_for_threshold(test_table, scores, true_events, threshold, iou_threshold, max_gap_s)
+    metrics.update(_recall_at_far(test_table, scores, true_events, (1.0, 5.0, 10.0), iou_threshold, max_gap_s))
+
+    y_true = test_table["label"].to_numpy()
+    y_pred = (scores >= threshold).astype(int)
+    if "duration_s" in test_table.columns:
+        evaluated_hours = float(test_table.drop_duplicates("filename")["duration_s"].astype(float).sum() / 3600.0)
+    else:
+        evaluated_hours = float(
+            sum(
+                group["end_s"].astype(float).max() - group["start_s"].astype(float).min()
+                for _, group in test_table.groupby("filename", sort=False)
+            )
+            / 3600.0
+        )
+    false_positive_windows = int(((y_true == 0) & (y_pred == 1)).sum())
+    metrics["window_false_alarm_rate_per_hour"] = float(false_positive_windows / evaluated_hours) if evaluated_hours > 0 else 0.0
+    metrics["false_positive_windows"] = false_positive_windows
+    return metrics
 
 
 def _has_sound_overlap(
@@ -152,6 +342,11 @@ def _metrics(y_true: np.ndarray, y_pred: np.ndarray, y_score: np.ndarray | None)
     if y_score is not None and len(np.unique(y_true)) > 1:
         out["roc_auc"] = float(roc_auc_score(y_true, y_score))
         out["average_precision"] = float(average_precision_score(y_true, y_score))
+        out["map_sound"] = out["average_precision"]
+        precision_curve, recall_curve, _ = precision_recall_curve(y_true, y_score)
+        for target_precision in (0.8, 0.9):
+            mask = precision_curve >= target_precision
+            out[f"recall_at_precision_{target_precision:.1f}"] = float(recall_curve[mask].max()) if mask.any() else 0.0
     return out
 
 
@@ -171,14 +366,15 @@ def _plot_epoch_history(history: list[dict], out_dir: Path, title: str) -> None:
     if not history:
         return
     epochs = [row["epoch"] for row in history]
-    fig, ax = plt.subplots(figsize=(7, 4))
+    fig, ax = plt.subplots(figsize=(7, 4), facecolor="#FBFCFC")
+    ax.set_facecolor("#FBFCFC")
     lines = [
         ("val_f1_sound", "F1", COLOR_F1),
         ("val_precision_sound", "Precision", COLOR_PRECISION),
         ("val_recall_sound", "Recall", COLOR_RECALL),
     ]
     for metric, label, color in lines:
-        ax.plot(epochs, [row.get(metric, 0.0) for row in history], marker="o", label=label, color=color)
+        ax.plot(epochs, [row.get(metric, 0.0) for row in history], marker="o", linewidth=2, label=label, color=color)
     ax.set_ylim(0, 1)
     ax.set_xlabel("epoch")
     ax.set_ylabel("validation score")
@@ -198,7 +394,8 @@ def _plot_curves(y_true: np.ndarray, y_score: np.ndarray, out_dir: Path, title: 
     fpr, tpr, _ = roc_curve(y_true, y_score)
     precision, recall, _ = precision_recall_curve(y_true, y_score)
 
-    fig, ax = plt.subplots(figsize=(5, 4))
+    fig, ax = plt.subplots(figsize=(5, 4), facecolor="#FBFCFC")
+    ax.set_facecolor("#FBFCFC")
     ax.plot(fpr, tpr, color=COLOR_CURVE, linewidth=2)
     ax.plot([0, 1], [0, 1], color="#A0A7B4", linestyle="--", linewidth=1)
     ax.set_xlabel("false positive rate")
@@ -211,7 +408,8 @@ def _plot_curves(y_true: np.ndarray, y_score: np.ndarray, out_dir: Path, title: 
     fig.savefig(out_dir / "roc_curve.png", dpi=160)
     plt.close(fig)
 
-    fig, ax = plt.subplots(figsize=(5, 4))
+    fig, ax = plt.subplots(figsize=(5, 4), facecolor="#FBFCFC")
+    ax.set_facecolor("#FBFCFC")
     ax.plot(recall, precision, color=COLOR_PR, linewidth=2)
     ax.set_xlabel("recall")
     ax.set_ylabel("precision")
@@ -226,8 +424,9 @@ def _plot_curves(y_true: np.ndarray, y_score: np.ndarray, out_dir: Path, title: 
 
 def _plot_confusion_matrix(cm: list[list[int]], out_dir: Path, title: str) -> None:
     arr = np.asarray(cm)
-    fig, ax = plt.subplots(figsize=(4.5, 4))
-    ax.imshow(arr, cmap="YlGnBu")
+    fig, ax = plt.subplots(figsize=(4.5, 4), facecolor="#FBFCFC")
+    ax.set_facecolor("#FBFCFC")
+    ax.imshow(arr, cmap=COLOR_CONFUSION)
     ax.set_xticks([0, 1])
     ax.set_yticks([0, 1])
     ax.set_xticklabels(CLASS_NAMES)
@@ -325,6 +524,14 @@ def train(args: argparse.Namespace) -> None:
     test_score = _score(model, X_test)
     test_pred = model.predict(X_test)
     test_metrics = _metrics(y_test, test_pred, test_score)
+    detection_metrics = _detection_metrics(
+        test_table,
+        test_score,
+        args.annotations,
+        float(args.event_iou_threshold),
+        float(args.event_merge_gap_s),
+        float(args.decision_threshold),
+    )
 
     predictions = test_table.copy()
     predictions["score_sound"] = test_score
@@ -362,6 +569,7 @@ def train(args: argparse.Namespace) -> None:
             "test": int((table["split"] == "test").sum()),
         },
         "test": test_metrics,
+        "detection": detection_metrics,
     }
     (out_dir / "metrics.json").write_text(json.dumps(result, indent=2), encoding="utf-8")
     joblib.dump({"model": model, "scaler": scaler, "class_names": CLASS_NAMES}, out_dir / "model.joblib")
@@ -369,7 +577,7 @@ def train(args: argparse.Namespace) -> None:
     _plot_epoch_history(history, out_dir, title)
     _plot_curves(y_test, test_score, out_dir, title)
     _plot_confusion_matrix(test_metrics["confusion_matrix"], out_dir, title)
-    print(json.dumps({"output_dir": str(out_dir), "test": test_metrics}, indent=2))
+    print(json.dumps({"output_dir": str(out_dir), "test": test_metrics, "detection": detection_metrics}, indent=2))
 
 
 def parse_args() -> argparse.Namespace:
@@ -388,6 +596,9 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--learning-rate", type=float, default=0.001)
     parser.add_argument("--alpha", type=float, default=0.0001)
     parser.add_argument("--seed", type=int, default=42)
+    parser.add_argument("--decision-threshold", type=float, default=0.5)
+    parser.add_argument("--event-iou-threshold", type=float, default=0.1)
+    parser.add_argument("--event-merge-gap-s", type=float, default=0.0)
     return parser.parse_args()
 
 

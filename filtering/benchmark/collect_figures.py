@@ -34,6 +34,10 @@ def collect(args: argparse.Namespace) -> None:
     if report_plot.is_file():
         copy_plot(report_plot, args.output_dir / "00_model_metric_comparison.png")
         copied += 1
+    detection_plot = args.report_dir / "detection_metrics_annotations_v2.png"
+    if detection_plot.is_file():
+        copy_plot(detection_plot, args.output_dir / "01_detection_metrics_annotations_v2.png")
+        copied += 1
 
     for metrics_path in sorted(args.runs_dir.glob("*/*/metrics.json")):
         scenario_dir = metrics_path.parent
@@ -57,6 +61,7 @@ def collect(args: argparse.Namespace) -> None:
                 "",
                 "Open this first:",
                 "00_model_metric_comparison.png",
+                "01_detection_metrics_annotations_v2.png",
                 "",
                 "Other files are named like:",
                 "<model>__<annotation_set>__<plot_type>.png",

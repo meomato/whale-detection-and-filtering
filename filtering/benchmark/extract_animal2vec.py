@@ -42,26 +42,28 @@ def _load_model(animal2vec_dir: Path, checkpoint: Path, device: torch.device):
     return model
 
 
-def _read_window(
-    audio_dir: Path,
-    filename: str,
-    start_s: float,
-    end_s: float,
-    target_sr: int,
-    fixed_duration_s: float,
-) -> torch.Tensor:
-    path = audio_dir / filename
-    info = sf.info(str(path))
-    start_frame = max(0, int(round(start_s * info.samplerate)))
-    stop_frame = min(info.frames, int(round(end_s * info.samplerate)))
-    data, sr = sf.read(str(path), start=start_frame, stop=stop_frame, dtype="float32", always_2d=True)
-    expected = int(round(fixed_duration_s * target_sr))
+def _read_resampled_file(audio_dir: Path, filename: str, target_sr: int) -> torch.Tensor:
+    data, sr = sf.read(str(audio_dir / filename), dtype="float32", always_2d=True)
     if data.size == 0:
-        return torch.zeros(expected, dtype=torch.float32)
-
+        return torch.zeros(0, dtype=torch.float32)
     mono = torch.from_numpy(data.mean(axis=1))
     if sr != target_sr:
         mono = AF.resample(mono, orig_freq=sr, new_freq=target_sr)
+    return mono.float()
+
+
+def _slice_window(
+    audio: torch.Tensor,
+    start_s: float,
+    target_sr: int,
+    fixed_duration_s: float,
+) -> torch.Tensor:
+    expected = int(round(fixed_duration_s * target_sr))
+    if audio.numel() == 0:
+        return torch.zeros(expected, dtype=torch.float32)
+    start_frame = max(0, int(round(start_s * target_sr)))
+    stop_frame = start_frame + expected
+    mono = audio[start_frame:stop_frame]
     if mono.numel() < expected:
         mono = torch.nn.functional.pad(mono, (0, expected - mono.numel()))
     elif mono.numel() > expected:
@@ -116,38 +118,44 @@ def extract(args: argparse.Namespace) -> None:
     if args.start_index:
         windows = windows.iloc[int(args.start_index) :].reset_index(drop=True)
 
-    for idx, row in windows.iterrows():
-        wav = _read_window(
-            args.audio_dir,
-            str(row["filename"]),
-            float(row["start_s"]),
-            float(row["end_s"]),
-            int(args.sample_rate),
-            float(args.window_size_s),
-        )
-        batch_audio.append(wav)
-        batch_rows.append(
-            {
-                "row_index": len(rows) + len(batch_rows),
-                "filename": str(row["filename"]),
-                "start_s": float(row["start_s"]),
-                "end_s": float(row["end_s"]),
-            }
-        )
-        if len(batch_audio) >= int(args.batch_size):
-            flush()
-        if (idx + 1) % int(args.progress_every) == 0:
-            print(
-                json.dumps(
-                    {
-                        "processed": int(idx + 1),
-                        "total_in_this_run": int(len(windows) if not args.max_windows else min(len(windows), args.max_windows)),
-                        "elapsed_s": time.perf_counter() - started,
-                    }
-                ),
-                flush=True,
+    processed = 0
+    total = int(len(windows) if not args.max_windows else min(len(windows), args.max_windows))
+    for filename, file_windows in windows.groupby("filename", sort=False):
+        audio = _read_resampled_file(args.audio_dir, str(filename), int(args.sample_rate))
+        for _, row in file_windows.iterrows():
+            wav = _slice_window(
+                audio,
+                float(row["start_s"]),
+                int(args.sample_rate),
+                float(args.window_size_s),
             )
-        if args.max_windows and idx + 1 >= int(args.max_windows):
+            batch_audio.append(wav)
+            batch_rows.append(
+                {
+                    "row_index": len(rows) + len(batch_rows),
+                    "filename": str(row["filename"]),
+                    "start_s": float(row["start_s"]),
+                    "end_s": float(row["end_s"]),
+                }
+            )
+            processed += 1
+            if len(batch_audio) >= int(args.batch_size):
+                flush()
+            if processed % int(args.progress_every) == 0:
+                print(
+                    json.dumps(
+                        {
+                            "processed": processed,
+                            "total_in_this_run": total,
+                            "elapsed_s": time.perf_counter() - started,
+                        }
+                    ),
+                    flush=True,
+                )
+            if args.max_windows and processed >= int(args.max_windows):
+                break
+        del audio
+        if args.max_windows and processed >= int(args.max_windows):
             break
     flush()
 
