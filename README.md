@@ -1,7 +1,15 @@
 # whale-detection-and-filtering
 
-Whale sound/noise classification with frozen pretrained audio encoders and a
-shared downstream classifier.
+Whale sound/noise detection experiments with pretrained audio encoders.
+
+Start here:
+
+- [docs/DATASETS.md](docs/DATASETS.md): environment setup, local data layout,
+  dataset sources, and download commands.
+- [docs/MODELS.md](docs/MODELS.md): pretrained encoders, checkpoints, sample
+  rates, and model-specific notes.
+- [docs/BENCHMARK.md](docs/BENCHMARK.md): benchmark setup, commands, metrics,
+  tables, figures, and current results.
 
 ## Project Structure
 
@@ -15,7 +23,9 @@ filtering/
 |   |-- extract_animal2vec.py       # frozen animal2vec embeddings
 |   |-- extract_voxaboxen_beats.py  # frozen Voxaboxen BEATs embeddings
 |   |-- extract_wav2vec2.py         # frozen Wav2Vec2 embeddings
+|   |-- merge_embedding_chunks.py   # join chunked embedding files
 |   |-- train_downstream.py         # shared sound/noise classifier on embeddings
+|   |-- add_detection_metrics.py    # add event/FAR style detection metrics
 |   |-- summarize_results.py        # summary tables and comparison plots
 |   `-- collect_figures.py          # copy plots into reports/benchmark_figures
 |-- watkins/
@@ -33,13 +43,17 @@ filtering/
 configs/
 |-- benchmark/                      # benchmark windowing and classifier settings
 |-- perch_embeddings/               # Perch embedding configs
+|-- perch_training/                 # Watkins Perch classifier settings
+|-- sed_training/                   # SED classifier settings
+|-- sound_event_detection/          # annotation conversion settings
 |-- data_loading/                   # public dataset download settings
 `-- voxaboxen/                      # external Voxaboxen run settings
 
 docs/
 |-- BENCHMARK.md                    # benchmark method, tables, commands, notes
-|-- DATASETS.md                     # dataset notes
-`-- MODELS.md                       # pretrained model and checkpoint notes
+|-- DATASETS.md                     # setup, data layout, sources, downloads
+|-- MODELS.md                       # pretrained model and checkpoint notes
+`-- GPU_SETUP.md                    # local GPU notes, ignored by git
 
 reports/
 |-- benchmark_figures/              # 5-second benchmark plots
@@ -47,15 +61,20 @@ reports/
 
 utils/
 `-- datasets_downloads/
+    |-- audio_saver.py              # shared audio writing helpers
+    |-- manifest_utils.py           # shared manifest helpers
     |-- download_watkins.py         # download Watkins marine mammal dataset
     |-- download_noaa_onms.py       # sample small subsets from NOAA ONMS / SanctSound
     |-- download_orcasound.py       # download and process Orcasound AWS Open Data
-    `-- download_manual_sed.py      # download manual SED dataset from Google Drive
+    |-- download_pacific_sound.py   # download Pacific Sound samples
+    |-- download_onc_hydrophones.py # download ONC hydrophone files
+    `-- download_voices_in_the_sea.py # download short reference examples
 
 scripts/
 |-- download_animal2vec_pretrained.sh
 |-- run_animal2vec_pretrained_chunk.sh
-`-- run_animal2vec_pretrained_chunks.sh
+|-- run_animal2vec_pretrained_chunks.sh
+`-- run_animal2vec_pretrained_extract.sh
 ```
 
 ## Main Results
@@ -81,13 +100,4 @@ Voxaboxen BEATs gives high recall, especially on `annotations_v2`, but also
 more false positives. animal2vec stays as the main candidate for later full
 fine-tuning. Wav2Vec2 works as a general audio baseline.
 
-Main plots:
-
-- [5-second figures](reports/benchmark_figures)
-- [1-second figures](reports/benchmark_1s_figures)
-
-Full notes:
-
-- [Benchmark report](docs/BENCHMARK.md)
-- [Datasets](docs/DATASETS.md)
-- [Models and checkpoints](docs/MODELS.md)
+[Benchmark report](docs/BENCHMARK.md)

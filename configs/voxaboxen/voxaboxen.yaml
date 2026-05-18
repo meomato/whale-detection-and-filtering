@@ -1,6 +1,6 @@
 # Lightweight adapter for running an external Voxaboxen checkout.
 # Voxaboxen itself is not vendored into this repository.
-# Default layout expects cetaceans-filtering and voxaboxen to be sibling folders.
+# Default layout expects whale-detection-and-filtering and voxaboxen to be sibling folders.
 
 voxaboxen_dir: "../voxaboxen"
 voxaboxen_python: "${voxaboxen.voxaboxen_dir}/.venv/Scripts/python.exe"

@@ -1,121 +1,241 @@
 # Datasets
 
-Dataset notes and download commands.
+Run the commands from the repository root. Downloaded audio, annotations, and
+checkpoints stay outside git.
 
 ## Python Setup
 
+Python 3.11 or newer is required.
+
+Windows PowerShell:
+
+```powershell
+python -m venv .venv
+.\.venv\Scripts\python.exe -m pip install --upgrade pip wheel
+.\.venv\Scripts\python.exe -m pip install -e .
+```
+
+Linux or WSL:
+
 ```bash
+python3 -m venv .venv
+. .venv/bin/activate
+python -m pip install --upgrade pip wheel
+python -m pip install -e .
+```
+
+Optional dependencies for Wav2Vec2:
+
+```powershell
+.\.venv\Scripts\python.exe -m pip install "torch>=2.5" "transformers>=4.51"
+```
+
+Optional Perch/Hoplite install:
+
+```powershell
+.\.venv\Scripts\python.exe -m pip install "perch-hoplite[tf] @ git+https://github.com/google-research/perch-hoplite"
+```
+
+The same setup can be done with `uv`:
+
+```powershell
 uv sync
+uv sync --group wav2vec2
 uv sync --group perch
 ```
 
-All main scripts use Hydra. Config values can be overridden inline:
+On Windows, the regular project scripts work from `.venv`. For GPU-heavy Perch
+or TensorFlow runs, WSL is recommended.
 
-```bash
-uv run python path/to/script.py section.key=value
+## Data Folder
+
+Data is not committed to git. Keep local audio and annotations under `data/`.
+
+Expected folders:
+
+```text
+data/
+|-- benchmark/
+|   |-- audio/
+|   `-- annotations/
+|       |-- annotations_v1.json
+|       `-- annotations_v2.json
+|-- orcasound/
+|-- noaa_onms/
+|-- pacific_sound/
+|-- watkins/
+|-- voices_in_the_sea/
+`-- voxaboxen/
+    |-- audio/
+    `-- annotations/
 ```
 
-Most defaults live under `configs/`.
+The default download path is configured here:
 
-## Watkins Dataset
-
-```bash
-uv run python utils/datasets_downloads/download_watkins.py
-uv run python filtering/embed/perch_v2_embed.py
-uv run python filtering/watkins/train_classifier.py
+```text
+configs/data_loading/data_loading.yaml
 ```
 
-## Manual SED Dataset
+By default it points to:
 
-```bash
-uv run python utils/datasets_downloads/download_manual_sed.py
-uv run python filtering/sed/convert_annotations.py
-uv run python filtering/embed/perch_v2_embed.py
-uv run python filtering/sed/train_classifier.py
+```text
+data
 ```
-
-Window label rule:
-
-- overlap with a `sound` event by at least `min_overlap_s`: `sound`
-- otherwise: `noise`
-- artifact windows can be kept as `noise` or excluded by config
-
-## NOAA ONMS / SanctSound
-
-Deployment list is configured in `configs/data_loading/data_loading.yaml`.
-
-Small update run:
-
-```powershell
-uv run python utils/datasets_downloads/download_noaa_onms.py data_loading.sources.noaa.only_new_files=true data_loading.sources.noaa.hours_per_deployment=1.34 data_loading.raw_segment_duration=-1
-```
-
-One file from each deployment:
-
-```powershell
-uv run python utils/datasets_downloads/download_noaa_onms.py data_loading.sources.noaa.only_new_files=true data_loading.sources.noaa.max_files_per_deployment=1 data_loading.raw_segment_duration=-1
-```
-
-Chunk output into 10-second WAV files:
-
-```powershell
-uv run python utils/datasets_downloads/download_noaa_onms.py data_loading.sources.noaa.only_new_files=true data_loading.sources.noaa.hours_per_deployment=1.34 data_loading.raw_segment_duration=10
-```
-
-Output paths:
-
-- original files: `data/noaa_onms/downloads/...`
-- audio for labeling/training: `data/noaa_onms/audio/...`
-
-Please cite NOAA SanctSound/ONMS data according to deployment metadata:
-https://doi.org/10.25921/saca-sp25
 
 ## Orcasound
 
-Full run:
+Source registry:
 
-```powershell
-uv run python utils/datasets_downloads/download_orcasound.py data_loading.sources.orcasound.max_files_per_source=null data_loading.sources.orcasound.target_hours_total=null
+https://registry.opendata.aws/orcasound/
+
+Useful prefixes:
+
+```text
+2020-06-26-SRKW-Lpod/
+2021_9_12_OS_YearsBestVocalPassby/
+2019-Orcasound-examples/
+humpbacks/
+2018-sperm-whale-Yukusam/
+2017_8_VesselsAndWavS/
 ```
 
-Small run, about 5 hours total:
+Download about 30 minutes from one prefix:
 
 ```powershell
-uv run python utils/datasets_downloads/download_orcasound.py data_loading.sources.orcasound.target_hours_total=5 data_loading.sources.orcasound.duration_min_minutes=4 data_loading.sources.orcasound.duration_max_minutes=6 data_loading.sources.orcasound.assume_minutes_per_file=5 data_loading.sources.orcasound.max_files_per_source=null
+python utils\datasets_downloads\download_orcasound.py `
+  data_loading.raw_datasets_path=data `
+  data_loading.raw_segment_duration=-1 `
+  data_loading.sources.orcasound.selected_prefixes=[2020-06-26-SRKW-Lpod/] `
+  data_loading.sources.orcasound.target_hours_total=0.5 `
+  data_loading.sources.orcasound.assume_minutes_per_file=1 `
+  data_loading.sources.orcasound.max_files_per_source=60 `
+  data_loading.sources.orcasound.only_new_files=true
 ```
 
-Output paths:
+Output:
 
-- original files: `data/orcasound/downloads/...`
-- audio for labeling/training: `data/orcasound/audio/...`
+```text
+data/orcasound/<source_name>/audio/
+data/orcasound/<source_name>/manifest.jsonl
+```
 
-Source registry: https://registry.opendata.aws/orcasound/
+Use Orcasound for long-file inference checks and for additional positive
+examples.
+
+## NOAA ONMS / SanctSound
+
+NOAA/SanctSound is useful for hard negatives: ocean background, vessels, and
+recordings from different conditions.
+
+Citation:
+
+https://doi.org/10.25921/saca-sp25
+
+Small download:
+
+```powershell
+python utils\datasets_downloads\download_noaa_onms.py `
+  data_loading.raw_datasets_path=data `
+  data_loading.sources.noaa.only_new_files=true `
+  data_loading.sources.noaa.hours_per_deployment=0.5 `
+  data_loading.raw_segment_duration=-1
+```
+
+One file from each configured deployment:
+
+```powershell
+python utils\datasets_downloads\download_noaa_onms.py `
+  data_loading.raw_datasets_path=data `
+  data_loading.sources.noaa.only_new_files=true `
+  data_loading.sources.noaa.max_files_per_deployment=1 `
+  data_loading.raw_segment_duration=-1
+```
+
+Output:
+
+```text
+data/noaa_onms/
+```
+
+The deployment list is in:
+
+```text
+configs/data_loading/data_loading.yaml
+```
+
+## Pacific Sound
+
+Pacific Sound is useful as an extra background stress test. It is mainly for
+checking false alarms on ocean noise.
+
+Example:
+
+```powershell
+python utils\datasets_downloads\download_pacific_sound.py `
+  data_loading.raw_datasets_path=data `
+  data_loading.sources.pacific_sound.tier=16khz `
+  data_loading.sources.pacific_sound.years=[2023] `
+  data_loading.sources.pacific_sound.months=[11] `
+  data_loading.raw_segment_duration=-1
+```
+
+Output:
+
+```text
+data/pacific_sound/
+```
+
+## Watkins
+
+Watkins is a marine mammal clip dataset. It is useful for reference examples and
+species-level experiments, but it is not the main long-file detection dataset.
+
+```powershell
+python utils\datasets_downloads\download_watkins.py data_loading.raw_datasets_path=data
+```
+
+Output:
+
+```text
+data/watkins/
+```
+
+## Voices in the Sea
+
+Voices in the Sea contains short example sounds. It is useful for quick audio
+checks and small reference examples.
+
+```powershell
+python utils\datasets_downloads\download_voices_in_the_sea.py data_loading.raw_datasets_path=data
+```
+
+Output:
+
+```text
+data/voices_in_the_sea/
+```
 
 ## Voxaboxen Input Data
 
-These paths are used only for preparing project-local Voxaboxen input data.
-The model and checkpoint notes are described in `docs/MODELS.md`.
+Default Voxaboxen input paths:
 
-Input defaults:
-
-- audio: `data/voxaboxen/audio/`
-- Label Studio JSON: `data/voxaboxen/annotations/annotations.json`
-- config: `configs/voxaboxen/voxaboxen.yaml`
-
-```powershell
-uv run python filtering/voxaboxen/prepare_dataset.py
-uv run python filtering/voxaboxen/run_training.py
-uv run python filtering/voxaboxen/run_inference.py
+```text
+data/voxaboxen/audio/
+data/voxaboxen/annotations/annotations.json
+configs/voxaboxen/voxaboxen.yaml
 ```
 
-Run a named dataset without editing YAML:
+Prepare data:
 
 ```powershell
-uv run python filtering/voxaboxen/prepare_dataset.py voxaboxen.dataset_name=my_dataset voxaboxen.audio_dir="data/my_dataset/audio" voxaboxen.annotations_json="data/my_dataset/annotations.json"
+python filtering/voxaboxen/prepare_dataset.py
 ```
 
-Longer training run:
+Run a named dataset:
 
 ```powershell
-uv run python filtering/voxaboxen/run_training.py voxaboxen.n_epochs=8 voxaboxen.experiment_name=beats_binary_8ep
+python filtering/voxaboxen/prepare_dataset.py `
+  voxaboxen.dataset_name=my_dataset `
+  voxaboxen.audio_dir="data/my_dataset/audio" `
+  voxaboxen.annotations_json="data/my_dataset/annotations.json"
 ```

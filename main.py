@@ -1,5 +1,5 @@
 def main():
-    print("Hello from cetaceans-filtering!")
+    print("Hello from whale-detection-and-filtering!")
 
 
 if __name__ == "__main__":
