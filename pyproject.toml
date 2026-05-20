@@ -17,7 +17,7 @@ dependencies = [
 
 [dependency-groups]
 perch = ["perch-hoplite[tf]"]
-wav2vec2 = ["torch>=2.5", "transformers>=4.51"]
+wav2vec2 = ["torch>=2.5", "torchaudio>=2.5", "transformers>=4.51"]
 
 [tool.uv.sources]
 perch-hoplite = { git = "https://github.com/google-research/perch-hoplite" }

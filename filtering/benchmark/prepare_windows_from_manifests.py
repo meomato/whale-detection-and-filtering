@@ -74,7 +74,7 @@ def _write_windows(
         start_s = 0.0
         window_index = 0
         while start_s < duration_s:
-            end_s = min(duration_s, start_s + window_size_s)
+            end_s = start_s + window_size_s
             label = _label_window(start_s, end_s, sound_events, min_overlap_s)
             label_counts[label] += 1
             rows.append(
@@ -169,7 +169,7 @@ def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser()
     parser.add_argument("--source-root", type=Path, default=Path("outputs/benchmark"))
     parser.add_argument("--audio-dir", type=Path, default=Path("data/orcasound/audio"))
-    parser.add_argument("--output-root", type=Path, default=Path("outputs/benchmark_1s"))
+    parser.add_argument("--output-root", type=Path, default=Path("outputs/benchmark_context5_hop1"))
     parser.add_argument("--window-size-s", type=float, default=1.0)
     parser.add_argument("--hop-size-s", type=float, default=1.0)
     parser.add_argument("--min-sound-overlap-s", type=float, default=0.25)

@@ -233,6 +233,67 @@ def _recall_at_far(
     return out
 
 
+def _interpolated_ap(precision: list[float], recall: list[float]) -> float:
+    if not precision or not recall:
+        return 0.0
+    precs = [0.0] + [float(x) for x in precision] + [1.0]
+    recs = [1.0] + [float(x) for x in recall] + [0.0]
+    best_by_recall: dict[float, float] = {}
+    for r, p in zip(recs, precs, strict=False):
+        best_by_recall[r] = max(p, best_by_recall.get(r, 0.0))
+    recs_np = np.asarray(list(best_by_recall.keys()), dtype=float)
+    precs_np = np.asarray(list(best_by_recall.values()), dtype=float)
+    total = 0.0
+    recall_levels = np.linspace(0, 1, 1001)
+    for recall_level in recall_levels:
+        mask = recs_np >= recall_level
+        total += float(precs_np[mask].max()) if mask.any() else 0.0
+    return total / len(recall_levels)
+
+
+def _event_average_precision(
+    test_table: pd.DataFrame,
+    scores: np.ndarray,
+    true_events: dict[str, list[tuple[float, float]]],
+    iou_threshold: float,
+    max_gap_s: float,
+    n_thresholds: int = 101,
+) -> dict:
+    thresholds = np.linspace(0.0, 1.0, int(n_thresholds))
+    rows: list[dict] = []
+    precision: list[float] = []
+    recall: list[float] = []
+    for threshold in thresholds:
+        metrics = _event_metrics_for_threshold(
+            test_table,
+            scores,
+            true_events,
+            float(threshold),
+            iou_threshold,
+            max_gap_s,
+        )
+        if metrics["event_tp"] + metrics["event_fp"] + metrics["event_fn"] == 0:
+            continue
+        precision.append(float(metrics["event_precision"]))
+        recall.append(float(metrics["event_recall"]))
+        rows.append(
+            {
+                "threshold": float(threshold),
+                "precision": float(metrics["event_precision"]),
+                "recall": float(metrics["event_recall"]),
+                "tp": int(metrics["event_tp"]),
+                "fp": int(metrics["event_fp"]),
+                "fn": int(metrics["event_fn"]),
+            }
+        )
+    return {
+        "ap": float(_interpolated_ap(precision, recall)),
+        "iou_threshold": float(iou_threshold),
+        "n_thresholds": int(n_thresholds),
+        "sweep": rows,
+    }
+
+
 def _detection_metrics(
     test_table: pd.DataFrame,
     scores: np.ndarray,
@@ -245,6 +306,14 @@ def _detection_metrics(
     true_events = _clip_events_to_windows(all_true_events, test_table)
     metrics = _event_metrics_for_threshold(test_table, scores, true_events, threshold, iou_threshold, max_gap_s)
     metrics.update(_recall_at_far(test_table, scores, true_events, (1.0, 5.0, 10.0), iou_threshold, max_gap_s))
+    event_ap_05 = _event_average_precision(test_table, scores, true_events, 0.5, max_gap_s)
+    event_ap_08 = _event_average_precision(test_table, scores, true_events, 0.8, max_gap_s)
+    metrics["voxaboxen_style_event_ap_0.5"] = event_ap_05["ap"]
+    metrics["voxaboxen_style_event_ap_0.8"] = event_ap_08["ap"]
+    metrics["voxaboxen_style_event_ap"] = {
+        "0.5": event_ap_05,
+        "0.8": event_ap_08,
+    }
 
     y_true = test_table["label"].to_numpy()
     y_pred = (scores >= threshold).astype(int)
@@ -314,7 +383,11 @@ def _build_table(args: argparse.Namespace) -> tuple[np.ndarray, pd.DataFrame]:
     table["label"] = labels
     table["label_name"] = np.where(table["label"].to_numpy() == 1, "sound", "noise")
     table["split"] = split_values
-    keep = table["split"].isin(["train", "val", "test"]).to_numpy()
+    duration = table["end_s"].astype(float) - table["start_s"].astype(float)
+    keep = (
+        table["split"].isin(["train", "val", "test"])
+        & duration.ge(float(args.min_window_duration_s))
+    ).to_numpy()
     return X[keep], table.loc[keep].reset_index(drop=True)
 
 
@@ -591,6 +664,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--splits", type=Path, required=True)
     parser.add_argument("--output-dir", type=Path, required=True)
     parser.add_argument("--min-sound-overlap-s", type=float, default=0.1)
+    parser.add_argument("--min-window-duration-s", type=float, default=0.0)
     parser.add_argument("--epochs", type=int, default=8)
     parser.add_argument("--patience", type=int, default=3)
     parser.add_argument("--learning-rate", type=float, default=0.001)

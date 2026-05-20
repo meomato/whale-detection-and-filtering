@@ -22,6 +22,7 @@ import csv
 import json
 import sys
 import time
+import types
 from pathlib import Path
 
 import numpy as np
@@ -32,6 +33,17 @@ import torchaudio.functional as AF
 
 
 def _load_model(animal2vec_dir: Path, checkpoint: Path, device: torch.device):
+    if "tensorflow" not in sys.modules:
+        tf_stub = types.ModuleType("tensorflow")
+        tf_image_stub = types.ModuleType("tensorflow.image")
+
+        def _decode_png_stub(*_args, **_kwargs):
+            raise RuntimeError("tensorflow.image.decode_png is not available in this embedding wrapper")
+
+        tf_image_stub.decode_png = _decode_png_stub
+        tf_stub.image = tf_image_stub
+        sys.modules["tensorflow"] = tf_stub
+        sys.modules["tensorflow.image"] = tf_image_stub
     sys.path.insert(0, str(animal2vec_dir))
     import nn  # noqa: F401  # registers animal2vec fairseq models/tasks
     from fairseq import checkpoint_utils

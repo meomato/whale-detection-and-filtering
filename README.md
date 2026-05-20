@@ -1,15 +1,28 @@
 # whale-detection-and-filtering
 
-Whale sound/noise detection experiments with pretrained audio encoders.
+Binary whale sound detection with pretrained audio encoders.
 
-Start here:
+## Labeling Rule
 
-- [docs/DATASETS.md](docs/DATASETS.md): environment setup, local data layout,
-  dataset sources, and download commands.
-- [docs/MODELS.md](docs/MODELS.md): pretrained encoders, checkpoints, sample
-  rates, and model-specific notes.
-- [docs/BENCHMARK.md](docs/BENCHMARK.md): benchmark setup, commands, metrics,
-  tables, figures, and current results.
+All stages use the same binary labeling rule:
+
+- `sound`: any target whale sound, including clicks and vocalizations;
+- `noise`: everything outside `sound`, including background, silence,
+  artifacts, and non-target sounds.
+
+Overlapping `sound` intervals are merged before window labeling, plotting, and
+event-level evaluation.
+
+Main documentation:
+
+- [docs/DATASETS.md](docs/DATASETS.md): environment setup, data layout, sources,
+  and download commands.
+- [docs/MODELS.md](docs/MODELS.md): model sources, checkpoints, sample rates,
+  and wrappers.
+- [docs/BENCHMARK.md](docs/BENCHMARK.md): frozen-encoder benchmark, metrics,
+  tables, and plots.
+- [docs/INFERENCE_REVIEW.md](docs/INFERENCE_REVIEW.md): long-file inference
+  review with spectrogram plots.
 
 ## Project Structure
 
@@ -19,15 +32,21 @@ filtering/
 |   `-- perch_v2_embed.py           # compute Perch embeddings for any audio dataset
 |-- benchmark/
 |   |-- prepare_sound_noise.py      # Label Studio JSON -> binary sound/noise windows
-|   |-- prepare_windows_from_manifests.py # rebuild windows from saved manifests
+|   |-- prepare_windows_from_manifests.py # rebuild windows from manifests
 |   |-- extract_animal2vec.py       # frozen animal2vec embeddings
 |   |-- extract_voxaboxen_beats.py  # frozen Voxaboxen BEATs embeddings
 |   |-- extract_wav2vec2.py         # frozen Wav2Vec2 embeddings
 |   |-- merge_embedding_chunks.py   # join chunked embedding files
 |   |-- train_downstream.py         # shared sound/noise classifier on embeddings
-|   |-- add_detection_metrics.py    # add event/FAR style detection metrics
-|   |-- summarize_results.py        # summary tables and comparison plots
-|   `-- collect_figures.py          # copy plots into reports/benchmark_figures
+|   |-- make_file_cv_splits.py      # file-level CV split tables
+|   |-- threshold_sweep.py          # validation threshold sweeps
+|   |-- summarize_cv_benchmark.py   # CV tables and comparison plots
+|   `-- summarize_cv_thresholds.py  # threshold tables
+|-- review/
+|   |-- prepare_inference_windows.py # long-file windows
+|   |-- apply_cv_ensemble.py         # apply CV heads to review audio
+|   |-- summarize_inference_review.py # spectrogram overlays and review metrics
+|   `-- plot_inference_review.py     # manual annotation spectrograms
 |-- watkins/
 |   |-- train_classifier.py         # multiclass species classifier
 |   `-- classifier/                 # data loading, metrics, reporting, pipeline
@@ -52,12 +71,13 @@ configs/
 docs/
 |-- BENCHMARK.md                    # benchmark method, tables, commands, notes
 |-- DATASETS.md                     # setup, data layout, sources, downloads
-|-- MODELS.md                       # pretrained model and checkpoint notes
-`-- GPU_SETUP.md                    # local GPU notes, ignored by git
+|-- INFERENCE_REVIEW.md             # long-file annotation and spectrogram notes
+`-- MODELS.md                       # pretrained model and checkpoint notes
 
 reports/
-|-- benchmark_figures/              # 5-second benchmark plots
-`-- benchmark_1s_figures/           # 1-second benchmark plots
+|-- benchmark_context5_hop1_cv/      # CV benchmark tables and main plots
+|-- benchmark_context5_hop1_figures/ # per-run benchmark plots
+`-- inference_review_context5_hop1/  # long-file spectrogram checks
 
 utils/
 `-- datasets_downloads/
@@ -71,6 +91,7 @@ utils/
     `-- download_voices_in_the_sea.py # download short reference examples
 
 scripts/
+|-- hpc/                            # cluster setup and Slurm scripts
 |-- download_animal2vec_pretrained.sh
 |-- run_animal2vec_pretrained_chunk.sh
 |-- run_animal2vec_pretrained_chunks.sh
@@ -79,25 +100,21 @@ scripts/
 
 ## Main Results
 
-Benchmark here means that pretrained models are used only as feature
-extractors. Their weights are frozen, embeddings are extracted from the same
-audio windows, and the same simple `sound/noise` classifier is trained on top.
+The current benchmark uses frozen encoders and the same `sound/noise`
+downstream head. All models use 5-second audio context with a 1-second hop.
 
-Two runs are reported:
+Current CV results:
 
-- `5-second`: full-clip windows, used as the coarse baseline.
-- `1-second`: shorter windows, used because whale sounds can occupy only part
-  of a clip.
+| Annotation set | Best by | Model | Window AP | F1 | Precision | Recall | FPR |
+|---|---|---|---:|---:|---:|---:|---:|
+| all | low FPR | Perch 2.0 | 0.806 | 0.693 | 0.773 | 0.633 | 0.143 |
+| all | F1 | Voxaboxen BEATs | 0.801 | 0.696 | 0.750 | 0.672 | 0.172 |
+| v2 | Window AP / F1 | Voxaboxen BEATs | 0.873 | 0.751 | 0.808 | 0.705 | 0.200 |
+| v2 | close baseline | Perch 2.0 | 0.846 | 0.741 | 0.796 | 0.700 | 0.224 |
 
-Best `annotations_v2` results:
+Perch is the cleaner frozen baseline on the merged annotations. Voxaboxen is
+slightly stronger on the smaller v2 set. Frozen animal2vec is behind Perch and
+Voxaboxen, but it remains a candidate for later model-specific fine-tuning.
 
-| Benchmark | Best model | mAP/AP | F1 | Precision | Recall | FPR |
-|---|---|---:|---:|---:|---:|---:|
-| 5-second | Perch 2.0 | 0.970 | 0.888 | 0.895 | 0.881 | 0.200 |
-| 1-second | Perch 2.0 | 0.934 | 0.816 | 0.886 | 0.757 | 0.186 |
-
-Voxaboxen BEATs gives high recall, especially on `annotations_v2`, but also
-more false positives. animal2vec stays as the main candidate for later full
-fine-tuning. Wav2Vec2 works as a general audio baseline.
-
-[Benchmark report](docs/BENCHMARK.md)
+Next fine-tuning candidates are Perch 2.0, Voxaboxen BEATs, and animal2vec.
+Wav2Vec2 is kept only as a general frozen baseline.

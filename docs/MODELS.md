@@ -10,14 +10,13 @@ Perch 2.0 runs through the project embedding wrapper:
 filtering/embed/perch_v2_embed.py
 ```
 
-5-second benchmark settings:
+Benchmark settings:
 
 - sample rate: `32 kHz`
-- window size: `5 s`
+- audio context: `5 s`
+- hop: `1 s`
 - embedding dimension: `1536`
 - encoder state: frozen
-
-The 1-second benchmark uses `1 s` shards with `1 s` hop.
 
 Source:
 
@@ -33,14 +32,13 @@ Benchmark wrapper:
 filtering/benchmark/extract_voxaboxen_beats.py
 ```
 
-5-second benchmark settings:
+Benchmark settings:
 
 - sample rate: `16 kHz`
-- window size: `5 s`
+- audio context: `5 s`
+- hop: `1 s`
 - embedding dimension: `768`
 - encoder state: frozen
-
-The 1-second benchmark uses `1 s` windows with `1 s` hop.
 
 Expected checkpoint:
 
@@ -62,14 +60,13 @@ Benchmark wrapper:
 filtering/benchmark/extract_animal2vec.py
 ```
 
-5-second benchmark settings:
+Benchmark settings:
 
 - sample rate: `8 kHz`
-- window size: `5 s`
+- audio context: `5 s`
+- hop: `1 s`
 - embedding dimension: `1024`
 - encoder state: frozen
-
-The 1-second benchmark uses `1 s` windows with `1 s` hop.
 
 Source:
 
@@ -99,16 +96,15 @@ Benchmark wrapper:
 filtering/benchmark/extract_wav2vec2.py
 ```
 
-5-second benchmark settings:
+Benchmark settings:
 
 - model: `facebook/wav2vec2-base`
 - sample rate: `16 kHz`
-- window size: `5 s`
+- audio context: `5 s`
+- hop: `1 s`
 - embedding dimension: `768`
 - embedding rule: mean pooling over the final hidden state
 - encoder state: frozen
-
-The 1-second benchmark uses `1 s` windows with `1 s` hop.
 
 Local model files stay outside git:
 

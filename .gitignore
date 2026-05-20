@@ -8,12 +8,35 @@ wheels/
 
 # Virtual environments
 .venv
+.wsl-venv/
+.cache/
+.cache_win/
+.hf_cache/
+slurm_logs/
+reports/benchmark_figures/
+reports/benchmark_1s_figures/
+reports/inference_review/
+EXPERIMENTS.md
 
 # Local IDE settings
 .idea/
 
 # Local machine notes
 docs/GPU_SETUP.md
+docs/HPC_TRAINING.md
+
+# Local secrets and run logs
+.env
+.env.*
+*.log
+whale_project_hpc.zip
+
+# Large local model files
+*.pt
+*.pth
+*.ckpt
+*.safetensors
+*.onnx
 
 # Local DB artifacts
 *.sqlite
