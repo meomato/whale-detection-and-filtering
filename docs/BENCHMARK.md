@@ -28,6 +28,18 @@ Annotation sets:
 | `annotations_v1` | first annotation export only |
 | `annotations_v2` | second annotation export only |
 
+Dataset size in the final `context5_hop1` benchmark:
+
+| Set | Files | Audio duration | Sound intervals | Labeled windows |
+|---|---:|---:|---:|---:|
+| `annotations_v1` | 30 | 11.59 h | 4,872 | 41,732 |
+| `annotations_v2` | 25 | 2.08 h | 755 | 7,522 |
+| `annotations_all` | 55 | 13.67 h | 5,627 | 49,254 |
+
+The larger raw WAV corpus available during preparation contains 60 files and
+16.65 hours, but the benchmark above reports only the annotated files used for
+supervised training and evaluation.
+
 ## Windowing
 
 | Field | Value |

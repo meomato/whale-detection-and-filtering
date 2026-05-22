@@ -13,6 +13,15 @@ The binary labeling rule is consistent across the project:
 Overlapping `sound` intervals are merged before window labeling, plotting, and
 event-level evaluation.
 
+## Data Scale
+
+The available raw WAV corpus used during preparation contains 60 files with a
+total duration of 16.65 hours. The final merged supervised benchmark
+(`annotations_all`) uses the annotated subset: 55 audio files, 13.67 hours of
+audio, 5,627 manually marked sound intervals, and 49,254 labeled 5-second
+windows. The separate long-file review is a 30-minute Orcasound fragment, and
+the hard-background material contains 60 one-minute files, or 1 hour in total.
+
 ## Main Results
 
 ### Frozen Encoder Benchmark

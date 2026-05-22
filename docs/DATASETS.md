@@ -82,6 +82,11 @@ By default it points to:
 data
 ```
 
+In the current local experiment artifacts, the raw WAV corpus summary contains
+60 files and 16.65 hours of audio. The final merged supervised benchmark is the
+annotated subset used in `outputs/benchmark_context5_hop1/annotations_all`: 55
+files, 13.67 hours, 5,627 sound intervals, and 49,254 labeled windows.
+
 ## Orcasound
 
 Source registry:
