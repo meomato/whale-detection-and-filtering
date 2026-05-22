@@ -8,6 +8,8 @@ import numpy as np
 
 from .types import SplitData
 
+PLOT_BG = "#FFFFFF"
+
 
 def save_split_manifest(split: SplitData, output_dir: Path) -> None:
     split.manifest.to_csv(output_dir / f"{split.name}_manifest.csv", index=False)
@@ -29,7 +31,8 @@ def plot_macro_f1_summary(metrics: dict, output_dir: Path, primary_file_method: 
 
     x = np.arange(len(splits))
     width = 0.36
-    fig, ax = plt.subplots(figsize=(8, 4.5))
+    fig, ax = plt.subplots(figsize=(8, 4.5), facecolor=PLOT_BG)
+    ax.set_facecolor(PLOT_BG)
     ax.bar(x - width / 2, window_vals, width, label="window_macro_f1")
     ax.bar(
         x + width / 2, file_vals, width, label=f"file_{primary_file_method}_macro_f1"
@@ -42,7 +45,7 @@ def plot_macro_f1_summary(metrics: dict, output_dir: Path, primary_file_method: 
     ax.legend()
     fig.tight_layout()
     out_path = output_dir / "macro_f1_by_split.png"
-    fig.savefig(out_path, dpi=160)
+    fig.savefig(out_path, dpi=160, facecolor=PLOT_BG)
     plt.close(fig)
     return out_path
 
@@ -56,7 +59,8 @@ def plot_confusion_matrix_image(
         cm_norm = np.divide(cm_arr, row_sums, where=row_sums > 0)
     cm_norm = np.nan_to_num(cm_norm)
 
-    fig, ax = plt.subplots(figsize=(10, 8))
+    fig, ax = plt.subplots(figsize=(10, 8), facecolor=PLOT_BG)
+    ax.set_facecolor(PLOT_BG)
     im = ax.imshow(cm_norm, interpolation="nearest")
     fig.colorbar(im, ax=ax, fraction=0.046, pad=0.04)
     ax.set_title(title)
@@ -68,7 +72,7 @@ def plot_confusion_matrix_image(
     ax.set_xticklabels(class_names, rotation=90, fontsize=6)
     ax.set_yticklabels(class_names, fontsize=6)
     fig.tight_layout()
-    fig.savefig(out_path, dpi=180)
+    fig.savefig(out_path, dpi=180, facecolor=PLOT_BG)
     plt.close(fig)
     return out_path
 

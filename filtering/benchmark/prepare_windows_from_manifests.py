@@ -11,6 +11,8 @@ from pathlib import Path
 import pandas as pd
 import soundfile as sf
 
+from filtering.benchmark.audio_paths import resolve_audio_path
+
 
 SCENARIOS = ("annotations_all", "annotations_v1", "annotations_v2")
 
@@ -65,10 +67,8 @@ def _write_windows(
     label_counts: Counter[str] = Counter()
     for split_row in split_table.itertuples(index=False):
         filename = str(split_row.filename)
-        wav_path = audio_dir / filename
-        if not wav_path.is_file():
-            raise FileNotFoundError(f"Missing audio file: {wav_path}")
-        info = sf.info(str(wav_path))
+        audio_path = resolve_audio_path(audio_dir, filename)
+        info = sf.info(str(audio_path))
         duration_s = float(info.frames / info.samplerate)
         sound_events = sound_events_by_file.get(filename, [])
         start_s = 0.0

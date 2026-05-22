@@ -19,6 +19,8 @@ import hydra
 import soundfile as sf
 from omegaconf import DictConfig
 
+from filtering.benchmark.audio_paths import AUDIO_SUFFIXES, resolve_audio_path
+
 
 SCENARIOS = ("annotations_all", "annotations_v1", "annotations_v2")
 ARTIFACT_LABELS = {"artifact", "artifacts"}
@@ -255,7 +257,8 @@ def _write_window_manifest(
     label_counts = {"sound": 0, "noise": 0}
     events_by_file = _events_by_file(items)
     for row_index, filename in enumerate(sorted(events_by_file)):
-        info = sf.info(str(audio_dir / filename))
+        audio_path = resolve_audio_path(audio_dir, filename)
+        info = sf.info(str(audio_path))
         duration_s = float(info.frames / info.samplerate)
         sound_events = _merge_sound_events(events_by_file[filename])
         start_s = 0.0
@@ -355,9 +358,10 @@ def _write_voxaboxen_dataset(
         short_fn = f"vx_{idx:04d}"
         table_path = (out_dir / "selection_tables" / f"{short_fn}.txt").resolve()
         _write_selection_table(table_path, events)
+        audio_path = resolve_audio_path(audio_dir, filename)
         row = {
             "fn": short_fn,
-            "audio_fp": str((audio_dir / filename).resolve()),
+            "audio_fp": str(audio_path.resolve()),
             "selection_table_fp": str(table_path),
         }
         map_rows.append(
@@ -441,7 +445,7 @@ def _write_corpus_summary(audio_dir: Path, out_root: Path) -> None:
     sample_rates: Counter[int] = Counter()
     channels: Counter[int] = Counter()
     total_s = 0.0
-    files = sorted(audio_dir.glob("*.wav"))
+    files = sorted(path for suffix in AUDIO_SUFFIXES for path in audio_dir.glob(f"*{suffix}"))
     for path in files:
         info = sf.info(str(path))
         sample_rates[int(info.samplerate)] += 1
@@ -449,7 +453,7 @@ def _write_corpus_summary(audio_dir: Path, out_root: Path) -> None:
         total_s += float(info.frames / info.samplerate)
     summary = {
         "audio_dir": str(audio_dir),
-        "wav_files": len(files),
+        "audio_files": len(files),
         "total_hours": total_s / 3600.0,
         "sample_rates": {str(k): v for k, v in sorted(sample_rates.items())},
         "channels": {str(k): v for k, v in sorted(channels.items())},
@@ -475,7 +479,13 @@ def main(config: DictConfig) -> None:
 
     for scenario in SCENARIOS:
         items = _scenario_items(items_by_source, scenario)
-        missing = sorted({item.filename for item in items if not (audio_dir / item.filename).exists()})
+        missing = []
+        for item in items:
+            try:
+                resolve_audio_path(audio_dir, item.filename)
+            except FileNotFoundError:
+                missing.append(item.filename)
+        missing = sorted(set(missing))
         if missing:
             raise FileNotFoundError(f"{scenario}: missing audio files: {missing[:10]}")
 

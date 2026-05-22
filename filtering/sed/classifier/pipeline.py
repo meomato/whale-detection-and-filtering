@@ -28,6 +28,8 @@ from .data import (
     split_files,
 )
 
+PLOT_BG = "#FFFFFF"
+
 
 # ---------------------------------------------------------------------------
 # Model
@@ -101,14 +103,15 @@ def _plot_macro_f1(metrics: dict, out_dir: Path) -> Path:
             continue
         splits.append(s)
         vals.append(float(m["macro_f1"]))
-    fig, ax = plt.subplots(figsize=(6, 4))
+    fig, ax = plt.subplots(figsize=(6, 4), facecolor=PLOT_BG)
+    ax.set_facecolor(PLOT_BG)
     ax.bar(splits, vals)
     ax.set_ylim(0, 1)
     ax.set_ylabel("Macro-F1")
     ax.set_title("SED Binary Classifier — Window Macro-F1")
     fig.tight_layout()
     p = out_dir / "macro_f1_by_split.png"
-    fig.savefig(p, dpi=160)
+    fig.savefig(p, dpi=160, facecolor=PLOT_BG)
     plt.close(fig)
     return p
 
@@ -119,7 +122,8 @@ def _plot_cm(cm, class_names, title, out_path) -> Path:
     with np.errstate(divide="ignore", invalid="ignore"):
         norm = np.divide(arr, sums, where=sums > 0)
     norm = np.nan_to_num(norm)
-    fig, ax = plt.subplots(figsize=(5, 4))
+    fig, ax = plt.subplots(figsize=(5, 4), facecolor=PLOT_BG)
+    ax.set_facecolor(PLOT_BG)
     im = ax.imshow(norm, interpolation="nearest", cmap="Blues")
     fig.colorbar(im, ax=ax, fraction=0.046, pad=0.04)
     ax.set_title(title)
@@ -134,7 +138,7 @@ def _plot_cm(cm, class_names, title, out_path) -> Path:
         for j in range(len(class_names)):
             ax.text(j, i, f"{int(arr[i, j])}", ha="center", va="center", fontsize=9)
     fig.tight_layout()
-    fig.savefig(out_path, dpi=160)
+    fig.savefig(out_path, dpi=160, facecolor=PLOT_BG)
     plt.close(fig)
     return out_path
 

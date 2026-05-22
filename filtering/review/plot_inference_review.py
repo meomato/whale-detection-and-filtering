@@ -17,7 +17,7 @@ SOUND_COLOR = "#2A9D8F"
 WAVE_COLOR = "#6A8EAE"
 TEXT_COLOR = "#24343A"
 GRID_COLOR = "#DCE6E8"
-BG_COLOR = "#FBFCFC"
+BG_COLOR = "#FFFFFF"
 
 
 def _read_audio(path: Path, target_sr: int) -> tuple[np.ndarray, int]:
@@ -63,7 +63,7 @@ def _plot_timeline(order: pd.DataFrame, events: pd.DataFrame, out_dir: Path) -> 
     )
     ax.legend(frameon=False, loc="upper right")
     fig.tight_layout()
-    fig.savefig(out_dir / "00_annotation_timeline.png", dpi=170)
+    fig.savefig(out_dir / "00_annotation_timeline.png", dpi=170, facecolor=BG_COLOR)
     plt.close(fig)
 
 
@@ -175,7 +175,7 @@ def _plot_segment(
     cbar.set_label("dB")
     fig.tight_layout()
     out_path = out_dir / f"segment_{idx:03d}_spectrogram.png"
-    fig.savefig(out_path, dpi=170)
+    fig.savefig(out_path, dpi=170, facecolor=BG_COLOR)
     plt.close(fig)
 
     return {

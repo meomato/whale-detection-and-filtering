@@ -12,6 +12,7 @@ wheels/
 .cache/
 .cache_win/
 .hf_cache/
+.tmp/
 slurm_logs/
 reports/benchmark_figures/
 reports/benchmark_1s_figures/
@@ -29,7 +30,13 @@ docs/HPC_TRAINING.md
 .env
 .env.*
 *.log
+*.zip
+*.tar
 whale_project_hpc.zip
+whale_project_hpc_flac.zip
+*_hpc.zip
+_hpc_*_staging/
+hpc_data_transfer_manifest.csv
 
 # Large local model files
 *.pt
@@ -46,6 +53,11 @@ whale_project_hpc.zip
 
 outputs/
 models/
+runs/
+voxaboxen_pilot/
+reports/voxaboxen_finetuning/
+reports/voxaboxen_threshold_selection/
+reports/wav2vec2_finetuning/
 
 # Local datasets and private audio. Keep only folder placeholders.
 !data/

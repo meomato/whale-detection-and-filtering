@@ -27,10 +27,25 @@ PREDICTION_DIRS = {
     "wav2vec2_base": "wav2vec2_base",
 }
 
-BG_COLOR = "#FBFCFC"
+BG_COLOR = "#FFFFFF"
 TEXT_COLOR = "#24343A"
 GRID_COLOR = "#DCE6E8"
 SOUND_COLOR = "#6EC6B8"
+
+
+def _parse_models(value: str | None) -> list[tuple[str, str, str]]:
+    if not value:
+        return MODELS
+    out: list[tuple[str, str, str]] = []
+    for item in value.split(";"):
+        item = item.strip()
+        if not item:
+            continue
+        parts = item.split("|")
+        if len(parts) != 3:
+            raise ValueError("--models entries must be formatted as key|label|color")
+        out.append((parts[0], parts[1], parts[2]))
+    return out
 
 
 def _load_audio(path: Path, target_sr: int) -> tuple[np.ndarray, int]:
@@ -44,19 +59,19 @@ def _load_audio(path: Path, target_sr: int) -> tuple[np.ndarray, int]:
     return audio, sr
 
 
-def _load_predictions(predictions_dir: Path) -> dict[str, pd.DataFrame]:
+def _load_predictions(predictions_dir: Path, models: list[tuple[str, str, str]]) -> dict[str, pd.DataFrame]:
     out = {}
-    for key, _, _ in MODELS:
-        path = predictions_dir / PREDICTION_DIRS[key] / "window_predictions.csv"
+    for key, _, _ in models:
+        path = predictions_dir / PREDICTION_DIRS.get(key, key) / "window_predictions.csv"
         if path.exists():
             out[key] = pd.read_csv(path)
     return out
 
 
-def _write_summary(predictions_dir: Path, out_dir: Path) -> pd.DataFrame:
+def _write_summary(predictions_dir: Path, out_dir: Path, models: list[tuple[str, str, str]]) -> pd.DataFrame:
     rows = []
-    for key, label, _ in MODELS:
-        metrics_path = predictions_dir / PREDICTION_DIRS[key] / "inference_metrics.json"
+    for key, label, _ in models:
+        metrics_path = predictions_dir / PREDICTION_DIRS.get(key, key) / "inference_metrics.json"
         if not metrics_path.exists():
             continue
         metrics = json.loads(metrics_path.read_text(encoding="utf-8"))
@@ -78,9 +93,9 @@ def _write_summary(predictions_dir: Path, out_dir: Path) -> pd.DataFrame:
     return summary
 
 
-def _write_error_summary(predictions: dict[str, pd.DataFrame], out_dir: Path) -> pd.DataFrame:
+def _write_error_summary(predictions: dict[str, pd.DataFrame], out_dir: Path, models: list[tuple[str, str, str]]) -> pd.DataFrame:
     rows = []
-    for key, label, _ in MODELS:
+    for key, label, _ in models:
         df = predictions.get(key)
         if df is None or "label" not in df:
             continue
@@ -118,11 +133,11 @@ def _write_error_summary(predictions: dict[str, pd.DataFrame], out_dir: Path) ->
     return out
 
 
-def _plot_error_counts(error_summary: pd.DataFrame, out_dir: Path) -> None:
+def _plot_error_counts(error_summary: pd.DataFrame, out_dir: Path, models: list[tuple[str, str, str]]) -> None:
     if error_summary.empty:
         return
     total = error_summary.groupby("model", as_index=False)[["tp", "fp", "fn"]].sum()
-    order = [label for _, label, _ in MODELS if label in set(total["model"])]
+    order = [label for _, label, _ in models if label in set(total["model"])]
     total["model"] = pd.Categorical(total["model"], categories=order, ordered=True)
     total = total.sort_values("model")
 
@@ -143,21 +158,26 @@ def _plot_error_counts(error_summary: pd.DataFrame, out_dir: Path) -> None:
         ax.spines[spine].set_visible(False)
     ax.legend(frameon=False, ncol=3, loc="upper center", bbox_to_anchor=(0.5, -0.12))
     fig.tight_layout()
-    fig.savefig(out_dir / "02_window_error_counts.png", dpi=170)
+    fig.savefig(out_dir / "02_window_error_counts.png", dpi=170, facecolor=BG_COLOR)
     plt.close(fig)
 
 
-def _plot_timeline(events: pd.DataFrame, predictions: dict[str, pd.DataFrame], out_dir: Path) -> None:
+def _plot_timeline(
+    events: pd.DataFrame,
+    predictions: dict[str, pd.DataFrame],
+    out_dir: Path,
+    models: list[tuple[str, str, str]],
+) -> None:
     duration_min = max(
         [float(events["global_end_s"].max()) / 60]
         + [float(df["global_end_s"].max()) / 60 for df in predictions.values() if "global_end_s" in df]
     )
     fig, axes = plt.subplots(
-        len(MODELS) + 1,
+        len(models) + 1,
         1,
         figsize=(14, 8.5),
         sharex=True,
-        gridspec_kw={"height_ratios": [0.55] + [1] * len(MODELS), "hspace": 0.1},
+        gridspec_kw={"height_ratios": [0.55] + [1] * len(models), "hspace": 0.1},
         facecolor=BG_COLOR,
     )
     for ax in axes:
@@ -175,7 +195,7 @@ def _plot_timeline(events: pd.DataFrame, predictions: dict[str, pd.DataFrame], o
     ax_ann.set_ylabel("manual", rotation=0, ha="right", va="center", labelpad=45)
     ax_ann.set_title("Inference review: manual annotation and model scores", color=TEXT_COLOR, pad=10)
 
-    for ax, (key, label, color) in zip(axes[1:], MODELS, strict=False):
+    for ax, (key, label, color) in zip(axes[1:], models, strict=False):
         df = predictions.get(key)
         ax.set_ylim(-0.08, 1.08)
         ax.axhline(0.5, color="#9BA8AE", lw=0.9, ls="--")
@@ -193,7 +213,7 @@ def _plot_timeline(events: pd.DataFrame, predictions: dict[str, pd.DataFrame], o
     axes[-1].set_xlim(0, duration_min)
     axes[-1].set_xlabel("time, min")
     fig.tight_layout()
-    fig.savefig(out_dir / "01_inference_scores_timeline.png", dpi=170)
+    fig.savefig(out_dir / "01_inference_scores_timeline.png", dpi=170, facecolor=BG_COLOR)
     plt.close(fig)
 
 
@@ -205,6 +225,7 @@ def _plot_segment_overlay(
     out_dir: Path,
     target_sr: int,
     max_freq_hz: int,
+    models: list[tuple[str, str, str]],
     output_name: str | None = None,
     title: str | None = None,
 ) -> None:
@@ -265,7 +286,7 @@ def _plot_segment_overlay(
         ax_spec.axvspan(start, end, color=SOUND_COLOR, alpha=0.28, lw=0)
         ax_score.axvspan(start, end, color=SOUND_COLOR, alpha=0.18, lw=0)
 
-    for key, label, color in MODELS:
+    for key, label, color in models:
         df = predictions.get(key)
         if df is None:
             continue
@@ -282,18 +303,23 @@ def _plot_segment_overlay(
     ax_score.legend(frameon=False, ncol=4, loc="upper center", bbox_to_anchor=(0.5, -0.28))
     fig.colorbar(im, ax=ax_spec, pad=0.01, fraction=0.025).set_label("dB")
     fig.tight_layout()
-    fig.savefig(out_dir / (output_name or f"segment_{segment_index:03d}_inference_overlay.png"), dpi=170)
+    fig.savefig(
+        out_dir / (output_name or f"segment_{segment_index:03d}_inference_overlay.png"),
+        dpi=170,
+        facecolor=BG_COLOR,
+    )
     plt.close(fig)
 
 
 def summarize(args: argparse.Namespace) -> None:
     args.output_dir.mkdir(parents=True, exist_ok=True)
-    predictions = _load_predictions(args.predictions_dir)
+    models = _parse_models(args.models)
+    predictions = _load_predictions(args.predictions_dir, models)
     events = pd.read_csv(args.events)
-    _write_summary(args.predictions_dir, args.output_dir)
-    error_summary = _write_error_summary(predictions, args.output_dir)
-    _plot_error_counts(error_summary, args.output_dir)
-    _plot_timeline(events, predictions, args.output_dir)
+    _write_summary(args.predictions_dir, args.output_dir, models)
+    error_summary = _write_error_summary(predictions, args.output_dir, models)
+    _plot_error_counts(error_summary, args.output_dir, models)
+    _plot_timeline(events, predictions, args.output_dir, models)
     segments = [int(item) for item in str(args.segments).split(",") if str(item).strip()]
     if not segments:
         segments = [int(args.segment)]
@@ -306,6 +332,7 @@ def summarize(args: argparse.Namespace) -> None:
             args.output_dir,
             args.target_sr,
             args.max_freq_hz,
+            models,
         )
     if not error_summary.empty:
         perch_errors = error_summary.loc[error_summary["model_key"].eq("perch_v2")]
@@ -325,6 +352,7 @@ def summarize(args: argparse.Namespace) -> None:
                     args.output_dir,
                     args.target_sr,
                     args.max_freq_hz,
+                    models,
                     output_name=name,
                     title=f"Segment {seg:03d}: {title_text}",
                 )
@@ -353,6 +381,11 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--segments", default="")
     parser.add_argument("--target-sr", type=int, default=96000)
     parser.add_argument("--max-freq-hz", type=int, default=48000)
+    parser.add_argument(
+        "--models",
+        default="",
+        help="Semicolon-separated model config entries: key|label|color",
+    )
     return parser.parse_args()
 
 

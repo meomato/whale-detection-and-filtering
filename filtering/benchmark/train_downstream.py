@@ -439,8 +439,8 @@ def _plot_epoch_history(history: list[dict], out_dir: Path, title: str) -> None:
     if not history:
         return
     epochs = [row["epoch"] for row in history]
-    fig, ax = plt.subplots(figsize=(7, 4), facecolor="#FBFCFC")
-    ax.set_facecolor("#FBFCFC")
+    fig, ax = plt.subplots(figsize=(7, 4), facecolor="#FFFFFF")
+    ax.set_facecolor("#FFFFFF")
     lines = [
         ("val_f1_sound", "F1", COLOR_F1),
         ("val_precision_sound", "Precision", COLOR_PRECISION),
@@ -457,7 +457,7 @@ def _plot_epoch_history(history: list[dict], out_dir: Path, title: str) -> None:
     ax.spines["top"].set_visible(False)
     ax.spines["right"].set_visible(False)
     fig.tight_layout()
-    fig.savefig(out_dir / "epoch_metrics.png", dpi=160)
+    fig.savefig(out_dir / "epoch_metrics.png", dpi=160, facecolor="#FFFFFF")
     plt.close(fig)
 
 
@@ -467,8 +467,8 @@ def _plot_curves(y_true: np.ndarray, y_score: np.ndarray, out_dir: Path, title: 
     fpr, tpr, _ = roc_curve(y_true, y_score)
     precision, recall, _ = precision_recall_curve(y_true, y_score)
 
-    fig, ax = plt.subplots(figsize=(5, 4), facecolor="#FBFCFC")
-    ax.set_facecolor("#FBFCFC")
+    fig, ax = plt.subplots(figsize=(5, 4), facecolor="#FFFFFF")
+    ax.set_facecolor("#FFFFFF")
     ax.plot(fpr, tpr, color=COLOR_CURVE, linewidth=2)
     ax.plot([0, 1], [0, 1], color="#A0A7B4", linestyle="--", linewidth=1)
     ax.set_xlabel("false positive rate")
@@ -478,11 +478,11 @@ def _plot_curves(y_true: np.ndarray, y_score: np.ndarray, out_dir: Path, title: 
     ax.spines["top"].set_visible(False)
     ax.spines["right"].set_visible(False)
     fig.tight_layout()
-    fig.savefig(out_dir / "roc_curve.png", dpi=160)
+    fig.savefig(out_dir / "roc_curve.png", dpi=160, facecolor="#FFFFFF")
     plt.close(fig)
 
-    fig, ax = plt.subplots(figsize=(5, 4), facecolor="#FBFCFC")
-    ax.set_facecolor("#FBFCFC")
+    fig, ax = plt.subplots(figsize=(5, 4), facecolor="#FFFFFF")
+    ax.set_facecolor("#FFFFFF")
     ax.plot(recall, precision, color=COLOR_PR, linewidth=2)
     ax.set_xlabel("recall")
     ax.set_ylabel("precision")
@@ -491,14 +491,14 @@ def _plot_curves(y_true: np.ndarray, y_score: np.ndarray, out_dir: Path, title: 
     ax.spines["top"].set_visible(False)
     ax.spines["right"].set_visible(False)
     fig.tight_layout()
-    fig.savefig(out_dir / "pr_curve.png", dpi=160)
+    fig.savefig(out_dir / "pr_curve.png", dpi=160, facecolor="#FFFFFF")
     plt.close(fig)
 
 
 def _plot_confusion_matrix(cm: list[list[int]], out_dir: Path, title: str) -> None:
     arr = np.asarray(cm)
-    fig, ax = plt.subplots(figsize=(4.5, 4), facecolor="#FBFCFC")
-    ax.set_facecolor("#FBFCFC")
+    fig, ax = plt.subplots(figsize=(4.5, 4), facecolor="#FFFFFF")
+    ax.set_facecolor("#FFFFFF")
     ax.imshow(arr, cmap=COLOR_CONFUSION)
     ax.set_xticks([0, 1])
     ax.set_yticks([0, 1])
@@ -511,7 +511,7 @@ def _plot_confusion_matrix(cm: list[list[int]], out_dir: Path, title: str) -> No
         for j in range(2):
             ax.text(j, i, str(int(arr[i, j])), ha="center", va="center")
     fig.tight_layout()
-    fig.savefig(out_dir / "confusion_matrix.png", dpi=160)
+    fig.savefig(out_dir / "confusion_matrix.png", dpi=160, facecolor="#FFFFFF")
     plt.close(fig)
 
 

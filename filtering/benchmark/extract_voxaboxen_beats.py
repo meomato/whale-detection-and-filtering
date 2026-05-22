@@ -24,6 +24,8 @@ import soundfile as sf
 import torch
 import torchaudio.functional as AF
 
+from filtering.benchmark.audio_paths import resolve_audio_path
+
 
 def _load_encoder(voxaboxen_dir: Path, checkpoint: Path, device: torch.device):
     sys.path.insert(0, str(voxaboxen_dir))
@@ -38,7 +40,7 @@ def _load_encoder(voxaboxen_dir: Path, checkpoint: Path, device: torch.device):
 
 
 def _read_resampled_file(audio_dir: Path, filename: str, target_sr: int) -> torch.Tensor:
-    data, sr = sf.read(str(audio_dir / filename), dtype="float32", always_2d=True)
+    data, sr = sf.read(str(resolve_audio_path(audio_dir, filename)), dtype="float32", always_2d=True)
     if data.size == 0:
         return torch.zeros(0, dtype=torch.float32)
     mono = torch.from_numpy(data.mean(axis=1))

@@ -1,0 +1,2 @@
+model,windows,predicted_sound_windows,predicted_sound_events,precision,recall,f1,average_precision,roc_auc
+Wav2Vec2 full,1800,801,75,0.6554307116104869,0.4764065335753176,0.5517603783499737,0.6915736739060249,0.5627811377074243

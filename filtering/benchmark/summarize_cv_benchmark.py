@@ -36,7 +36,12 @@ METRICS = {
     "voxaboxen_style_event_ap_0.5": "Event AP@0.5",
     "voxaboxen_style_event_ap_0.8": "Event AP@0.8",
 }
-MODEL_ORDER = ["perch_v2", "voxaboxen_beats", "animal2vec_pretrained_meerkat", "wav2vec2_base"]
+MODEL_ORDER = [
+    "perch_v2",
+    "voxaboxen_beats",
+    "animal2vec_pretrained_meerkat",
+    "wav2vec2_base",
+]
 SCENARIO_ORDER = ["annotations_all", "annotations_v1", "annotations_v2"]
 COLORS = {
     "perch_v2": "#2A9D8F",
@@ -96,7 +101,9 @@ def _summary_table(folds: pd.DataFrame) -> pd.DataFrame:
             row[f"{label} std"] = row[f"{metric}_std"]
         rows.append(row)
     out = pd.DataFrame(rows)
-    out["model"] = pd.Categorical(out["model"], MODEL_ORDER, ordered=True)
+    known = [model for model in MODEL_ORDER if model in set(out["model"].astype(str))]
+    extras = sorted(set(out["model"].astype(str)) - set(known))
+    out["model"] = pd.Categorical(out["model"], known + extras, ordered=True)
     out["scenario"] = pd.Categorical(out["scenario"], SCENARIO_ORDER, ordered=True)
     return out.sort_values(["scenario", "model"]).reset_index(drop=True)
 
@@ -115,8 +122,8 @@ def _plot_model_metric_comparison(summary: pd.DataFrame, out_path: Path) -> None
         ("average_precision_mean", "Window AP", "#E9C46A"),
     ]
 
-    fig, ax = plt.subplots(figsize=(13.2, 6.1), facecolor="#FBFCFC")
-    ax.set_facecolor("#FBFCFC")
+    fig, ax = plt.subplots(figsize=(13.2, 6.1), facecolor="#FFFFFF")
+    ax.set_facecolor("#FFFFFF")
     x = list(range(len(plot)))
     width = 0.18
     for idx, (col, label, color) in enumerate(metrics):
@@ -135,7 +142,7 @@ def _plot_model_metric_comparison(summary: pd.DataFrame, out_path: Path) -> None
         ax.spines[spine].set_visible(False)
     ax.legend(frameon=False, ncol=4, loc="upper center", bbox_to_anchor=(0.5, 1.02))
     fig.tight_layout()
-    fig.savefig(out_path, dpi=170)
+    fig.savefig(out_path, dpi=170, facecolor="#FFFFFF")
     plt.close(fig)
 
 
@@ -155,8 +162,8 @@ def _plot_score_heatmap(summary: pd.DataFrame, out_path: Path) -> None:
     cols = [SCENARIO_LABELS[s] for s in SCENARIO_ORDER]
     pivot = work.pivot(index="row", columns="col", values="benchmark_score").reindex(index=rows, columns=cols)
 
-    fig, ax = plt.subplots(figsize=(7.8, 4.8), facecolor="#FBFCFC")
-    ax.set_facecolor("#FBFCFC")
+    fig, ax = plt.subplots(figsize=(7.8, 4.8), facecolor="#FFFFFF")
+    ax.set_facecolor("#FFFFFF")
     im = ax.imshow(pivot.to_numpy(), cmap="YlGnBu", vmin=0, vmax=1, aspect="auto")
     ax.set_xticks(np.arange(len(cols)), cols)
     ax.set_yticks(np.arange(len(rows)), rows)
@@ -171,7 +178,7 @@ def _plot_score_heatmap(summary: pd.DataFrame, out_path: Path) -> None:
     cbar.outline.set_visible(False)
     cbar.set_label("higher is better")
     fig.tight_layout()
-    fig.savefig(out_path, dpi=170)
+    fig.savefig(out_path, dpi=170, facecolor="#FFFFFF")
     plt.close(fig)
 
 
@@ -194,9 +201,9 @@ def _load_cv_predictions(runs_dir: Path) -> pd.DataFrame:
 def _plot_cv_pr_curves(predictions: pd.DataFrame, out_path: Path) -> None:
     if predictions.empty:
         return
-    fig, axes = plt.subplots(1, 3, figsize=(15.5, 4.8), sharex=True, sharey=True, facecolor="#FBFCFC")
+    fig, axes = plt.subplots(1, 3, figsize=(15.5, 4.8), sharex=True, sharey=True, facecolor="#FFFFFF")
     for ax, scenario in zip(axes, SCENARIO_ORDER, strict=False):
-        ax.set_facecolor("#FBFCFC")
+        ax.set_facecolor("#FFFFFF")
         scenario_predictions = predictions[predictions["scenario"].astype(str).eq(scenario)]
         for model in MODEL_ORDER:
             data = scenario_predictions[scenario_predictions["model"].astype(str).eq(model)]
@@ -206,7 +213,7 @@ def _plot_cv_pr_curves(predictions: pd.DataFrame, out_path: Path) -> None:
             scores = data["score_sound"].astype(float).to_numpy()
             precision, recall, _ = precision_recall_curve(y_true, scores)
             ap = average_precision_score(y_true, scores)
-            ax.plot(recall, precision, color=COLORS[model], lw=1.8, label=f"{MODEL_LABELS[model]} AP={ap:.2f}")
+            ax.plot(recall, precision, color=COLORS.get(model, "#607D8B"), lw=1.8, label=f"{MODEL_LABELS.get(model, model)} AP={ap:.2f}")
         ax.set_title(SCENARIO_LABELS[scenario], color="#24343A", pad=8)
         ax.set_xlim(0, 1)
         ax.set_ylim(0, 1.02)
@@ -219,16 +226,16 @@ def _plot_cv_pr_curves(predictions: pd.DataFrame, out_path: Path) -> None:
     fig.legend(handles, labels, frameon=False, ncol=2, loc="lower center", bbox_to_anchor=(0.5, -0.1))
     fig.suptitle("CV precision-recall curves", y=1.03, color="#24343A")
     fig.tight_layout()
-    fig.savefig(out_path, dpi=170, bbox_inches="tight")
+    fig.savefig(out_path, dpi=170, bbox_inches="tight", facecolor="#FFFFFF")
     plt.close(fig)
 
 
 def _plot_cv_roc_curves(predictions: pd.DataFrame, out_path: Path) -> None:
     if predictions.empty:
         return
-    fig, axes = plt.subplots(1, 3, figsize=(15.5, 4.8), sharex=True, sharey=True, facecolor="#FBFCFC")
+    fig, axes = plt.subplots(1, 3, figsize=(15.5, 4.8), sharex=True, sharey=True, facecolor="#FFFFFF")
     for ax, scenario in zip(axes, SCENARIO_ORDER, strict=False):
-        ax.set_facecolor("#FBFCFC")
+        ax.set_facecolor("#FFFFFF")
         scenario_predictions = predictions[predictions["scenario"].astype(str).eq(scenario)]
         ax.plot([0, 1], [0, 1], color="#AAB7BD", lw=1.0, ls="--")
         for model in MODEL_ORDER:
@@ -239,7 +246,7 @@ def _plot_cv_roc_curves(predictions: pd.DataFrame, out_path: Path) -> None:
             scores = data["score_sound"].astype(float).to_numpy()
             fpr, tpr, _ = roc_curve(y_true, scores)
             auc = roc_auc_score(y_true, scores)
-            ax.plot(fpr, tpr, color=COLORS[model], lw=1.8, label=f"{MODEL_LABELS[model]} AUC={auc:.2f}")
+            ax.plot(fpr, tpr, color=COLORS.get(model, "#607D8B"), lw=1.8, label=f"{MODEL_LABELS.get(model, model)} AUC={auc:.2f}")
         ax.set_title(SCENARIO_LABELS[scenario], color="#24343A", pad=8)
         ax.set_xlim(0, 1)
         ax.set_ylim(0, 1.02)
@@ -252,7 +259,7 @@ def _plot_cv_roc_curves(predictions: pd.DataFrame, out_path: Path) -> None:
     fig.legend(handles, labels, frameon=False, ncol=2, loc="lower center", bbox_to_anchor=(0.5, -0.1))
     fig.suptitle("CV ROC curves", y=1.03, color="#24343A")
     fig.tight_layout()
-    fig.savefig(out_path, dpi=170, bbox_inches="tight")
+    fig.savefig(out_path, dpi=170, bbox_inches="tight", facecolor="#FFFFFF")
     plt.close(fig)
 
 

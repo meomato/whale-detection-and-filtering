@@ -78,8 +78,8 @@ def _pick_thresholds(val_sweep: pd.DataFrame, clean_precision: float) -> dict[st
 
 
 def _plot_sweep(df: pd.DataFrame, picks: dict[str, float], out_path: Path, title: str) -> None:
-    fig, ax = plt.subplots(figsize=(8, 4.6), facecolor="#FBFCFC")
-    ax.set_facecolor("#FBFCFC")
+    fig, ax = plt.subplots(figsize=(8, 4.6), facecolor="#FFFFFF")
+    ax.set_facecolor("#FFFFFF")
     ax.plot(df["threshold"], df["f1"], color=COLORS["f1"], linewidth=2.2, label="F1")
     ax.plot(df["threshold"], df["precision"], color=COLORS["precision"], linewidth=2.0, label="Precision")
     ax.plot(df["threshold"], df["recall"], color=COLORS["recall"], linewidth=2.0, label="Recall")
@@ -96,7 +96,7 @@ def _plot_sweep(df: pd.DataFrame, picks: dict[str, float], out_path: Path, title
     ax.spines["top"].set_visible(False)
     ax.spines["right"].set_visible(False)
     fig.tight_layout()
-    fig.savefig(out_path, dpi=170)
+    fig.savefig(out_path, dpi=170, facecolor="#FFFFFF")
     plt.close(fig)
 
 

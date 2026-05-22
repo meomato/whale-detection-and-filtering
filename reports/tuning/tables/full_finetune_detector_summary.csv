@@ -1,0 +1,4 @@
+model,run,selected_threshold,event_precision,event_recall,event_f1,segment_f1,note
+Voxaboxen BEATs,full detector,0.22777777777777777,0.4153543307086614,0.4821020563594821,0.44624603454353184,0.6091422212786518,completed
+Wav2Vec2,full fine-tune detector,0.44,0.10465116279069768,0.013709063214013708,0.024242424242424242,,completed but weak
+animal2vec,full fine-tune detector,,,,,,not used: too slow/failed before useful full run
