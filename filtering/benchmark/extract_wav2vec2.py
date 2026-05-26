@@ -5,6 +5,7 @@ from __future__ import annotations
 import argparse
 import csv
 import json
+import sys
 import time
 from pathlib import Path
 
@@ -14,6 +15,9 @@ import soundfile as sf
 import torch
 import torchaudio.functional as AF
 from transformers import Wav2Vec2FeatureExtractor, Wav2Vec2Model
+
+if __package__ in {None, ""}:
+    sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 
 from filtering.benchmark.audio_paths import resolve_audio_path
 
