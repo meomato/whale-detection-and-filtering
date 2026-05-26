@@ -14,6 +14,12 @@ window-level classification.
 
 ## Summary
 
+Recompute all numbers from the saved report CSVs and long-file predictions:
+
+```powershell
+python -m filtering.analysis.hypothesis_tests
+```
+
 | ID | Sub-hypothesis | Statistical test | Main statistic | Decision |
 |---|---|---|---:|---|
 | H1 | Specialized encoders outperform the general Wav2Vec2 baseline in window ranking. | paired one-sided Student t-test and sign-permutation test on fold Window AP | t = 7.433, p = 0.0009 | Accepted |

@@ -13,8 +13,8 @@ val_fraction: 0.15
 
 # Window labels used for embedding/downstream-classifier benchmarks.
 window_size_s: 5.0
-hop_size_s: 5.0
-min_sound_overlap_s: 0.1
+hop_size_s: 1.0
+min_sound_overlap_s: 0.25
 
 # For CPU-limited runs this is intentionally short. Raise on GPU.
 downstream_epochs: 8

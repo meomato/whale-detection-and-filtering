@@ -170,7 +170,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--source-root", type=Path, default=Path("outputs/benchmark"))
     parser.add_argument("--audio-dir", type=Path, default=Path("data/orcasound/audio"))
     parser.add_argument("--output-root", type=Path, default=Path("outputs/benchmark_context5_hop1"))
-    parser.add_argument("--window-size-s", type=float, default=1.0)
+    parser.add_argument("--window-size-s", type=float, default=5.0)
     parser.add_argument("--hop-size-s", type=float, default=1.0)
     parser.add_argument("--min-sound-overlap-s", type=float, default=0.25)
     return parser.parse_args()

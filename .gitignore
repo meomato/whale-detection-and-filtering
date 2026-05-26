@@ -52,6 +52,7 @@ hpc_data_transfer_manifest.csv
 *.index
 
 outputs/
+outputs/benchmark/
 models/
 runs/
 voxaboxen_pilot/
